@@ -14,27 +14,33 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    role: {
+      type: String,
+      enum: ['Super Admin', 'Admin', 'Manager', 'Admin Staff', 'Driver', 'Customer', 'Retail Hub'],
+      default: 'Customer'
+    },
     password: {
       type: String,
       required: true,
     },
-      tokens: [{ type: String }], //  Multi-device support
+    tokens: [{ type: String }], //  Multi-device support
 
 
     // Add these profile fields:
+    companyName: String,
     fullName: String,
     nickName: String,
     dob: String,
     phone: String,
     gender: String,
-    image: String, 
+    image: String,
     location: {
       latitude: Number,
       longitude: Number,
       address: String, // Optional address field
     },
   },
-  
+
   { timestamps: true }
 );
 

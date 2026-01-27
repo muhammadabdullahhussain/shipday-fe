@@ -12,18 +12,21 @@ const {
   deleteStaff,
   getRoutesGroupedByStaff,
   getDriverByRoute,
-   getDriverByName,
-   
+  getDriverByName,
+
 } = require("../controller/staff");
 
+
+const authMiddleware = require("../middleware/authMiddleware");
+const { verifySuperAdmin } = require("../middleware/roleMiddleware");
 
 router.post("/add", addNewStaff);
 router.get("/all", getAllStaff);
 router.post("/assign-task/:staffId", assignTaskToStaff);
 router.get("/:id/tasks", getAssignedTasks);
 router.put("/:staffId/update-task/:routeId", updateRoute);
-router.put("/update/:id", updateStaff); //  FIXED
-router.delete("/delete/:id", deleteStaff); // FIXED
+router.put("/update/:id", authMiddleware, verifySuperAdmin, updateStaff); //  Protected
+router.delete("/delete/:id", authMiddleware, verifySuperAdmin, deleteStaff); // Protected
 
 router.delete("/:staffId/remove-task/:routeId", deleteRoute);
 

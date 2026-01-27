@@ -4,6 +4,7 @@ const Order = require('../models/Order');
 const Notification = require('../models/Notification');
 const sendMail = require("../utils/mail");
 const Token = require('../models/Token');
+const Wallet = require('../models/Wallet');
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -36,8 +37,21 @@ const sendVerificationCode = async (email) => {
   );
 
   const text = `Your verification code is: ${code}. It will expire in 15 minutes.`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+      <h2 style="color: #0f172a; text-align: center;">Verification Code</h2>
+      <p style="font-size: 16px; color: #4b5563;">Hello,</p>
+      <p style="font-size: 16px; color: #4b5563;">Your verification code is:</p>
+      <div style="font-size: 32px; font-weight: bold; color: #fabb05; text-align: center; padding: 20px; margin: 20px 0; background: #f8fafc; border-radius: 8px; letter-spacing: 5px;">
+        ${code}
+      </div>
+      <p style="font-size: 14px; color: #9ca3af; text-align: center;">This code will expire in 15 minutes.</p>
+      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+      <p style="font-size: 12px; color: #9ca3af; text-align: center;">If you didn't request this code, please ignore this email.</p>
+    </div>
+  `;
 
-  await sendMail(email, "Your Verification Code", text);
+  await sendMail(email, "Your Verification Code - ShipDay", text, html);
 };
 
 // Helper to create notification
@@ -57,10 +71,18 @@ const createNotification = async (userId, title, message, type) => {
 
 // Generate unique customerId
 const generateCustomerId = async () => {
-  const count = await User.countDocuments();
+  const count = await User.countDocuments({ customerId: /^CUST/ });
   const nextNumber = count + 1;
   const padded = String(nextNumber).padStart(3, '0');
   return `CUST${padded}`;
+};
+
+// Generate unique Admin ID
+const generateAdminId = async () => {
+  const count = await User.countDocuments({ customerId: /^ADMIN/ });
+  const nextNumber = count + 1; // e.g. if 1 exists (ADMIN001), next is 2
+  const padded = String(nextNumber).padStart(3, '0');
+  return `ADMIN${padded}`;
 };
 
 // Request verification code
@@ -168,6 +190,13 @@ const registerUser = async (req, res) => {
       "registration"
     );
 
+    // Send notification to support
+    await sendMail(
+      "support@shipday.co.za",
+      "New User Registration",
+      `A new user has registered with email: ${sanitizedEmail}`
+    );
+
     res.status(201).json({ message: 'User registered successfully', customerId });
   } catch (err) {
     console.error(err);
@@ -191,7 +220,7 @@ const loginUser = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '2h' });
+    const token = jwt.sign({ id: user._id, email: user.email, role: user.role || 'Customer' }, process.env.JWT_SECRET, { expiresIn: '2h' });
 
     // create Token document
     const tokenDoc = await Token.create({ userId: user._id, token });
@@ -358,6 +387,7 @@ const getAllCustomers = async (req, res) => {
   try {
     const users = await User.find();
     const orders = await Order.find();
+    const wallets = await Wallet.find();
 
     const enrichedUsers = users.map((user) => {
       const userOrders = orders.filter(
@@ -365,12 +395,17 @@ const getAllCustomers = async (req, res) => {
           order.senderEmail === user.email || order.senderPhone === user.phone
       );
 
+      const userWallet = wallets.find(w => w.userId && w.userId.toString() === user._id.toString());
+
       return {
+        id: user._id,
         customerId: user.customerId,
         fullName: user.fullName,
         email: user.email,
         phone: user.phone,
+        role: user.role || 'Customer', // Add role for filtering
         totalOrders: userOrders.length,
+        walletBalance: userWallet ? userWallet.balance : 0
       };
     });
 
@@ -378,6 +413,18 @@ const getAllCustomers = async (req, res) => {
   } catch (error) {
     console.error("Error fetching customers", error);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get User by ID
+const getUserById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findById(id).select('-password -__v');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.status(200).json({ user });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -441,7 +488,7 @@ const googleLogin = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user._id, email: user.email },
+      { id: user._id, email: user.email, role: user.role || 'Customer' },
       process.env.JWT_SECRET,
       { expiresIn: "2h" }
     );
@@ -482,11 +529,95 @@ const convertImageToBase64 = async (url) => {
   }
 };
 
+// Create Admin/Staff User (Super Admin only)
+const createAdminUser = async (req, res) => {
+  const { email, password, fullName, role } = req.body;
+  const sanitizedEmail = validateEmail(email);
+
+  if (!sanitizedEmail || !password || !fullName)
+    return res.status(400).json({ message: 'Valid email, password, and name are required' });
+
+  if (!['Admin', 'Manager', 'Admin Staff'].includes(role)) {
+    return res.status(400).json({ message: 'Invalid role for admin creation' });
+  }
+
+  try {
+    const existingUser = await User.findOne({ email: sanitizedEmail });
+    if (existingUser)
+      return res.status(400).json({ message: 'User already exists' });
+
+    const customerId = await generateAdminId();
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create direct user with Role
+    const user = new User({
+      email: sanitizedEmail,
+      password: hashedPassword,
+      fullName: fullName,
+      customerId,
+      role: role // Explicitly set role
+    });
+
+    await user.save();
+
+    res.status(201).json({ message: `${role} created successfully`, userId: user._id });
+  } catch (err) {
+    console.error('Create Admin Error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Delete User (Super Admin only)
+const deleteUser = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const deleted = await User.findByIdAndDelete(id);
+    if (!deleted) return res.status(404).json({ message: "User not found" });
+
+    // Optional: Clean up related data like Wallet, Tokens, etc.
+    await Token.deleteMany({ userId: id });
+    await Wallet.deleteOne({ userId: id });
+
+    res.status(200).json({ message: "User deleted successfully" });
+  } catch (err) {
+    console.error("Delete user error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Update User (Super Admin only)
+const updateUserByAdmin = async (req, res) => {
+  const { id } = req.params;
+  const { fullName, email, role, password } = req.body;
+
+  try {
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (fullName) user.fullName = fullName;
+    if (email) user.email = email;
+    if (role) user.role = role;
+
+    if (password && password.trim() !== "") {
+      user.password = await bcrypt.hash(password, 10);
+    }
+
+    await user.save();
+    res.status(200).json({ message: "User updated successfully", user });
+  } catch (err) {
+    console.error("Update user error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 //  Export all
 module.exports = {
   requestVerificationCode,
   verifyCode,
   registerUser,
+  createAdminUser,
+  deleteUser,
+  updateUserByAdmin, // Exported
   loginUser,
   logoutUser,
   resetPassword,
@@ -494,7 +625,8 @@ module.exports = {
   saveUserLocation,
   getUserByEmail,
   getAllCustomers,
-  getCustomerById,
+  getCustomerById, // Existing function
+  getUserById, // New function by _id
   googleLogin,
   createNotification,
 };

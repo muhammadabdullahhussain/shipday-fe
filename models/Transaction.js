@@ -12,12 +12,16 @@ const transactionSchema = new mongoose.Schema({
     enum: ["Credit", "Debit"],
   },
   orderId: {
-    type: String, 
+    type: String,
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   },
   amount: Number,
   method: {
     type: String,
-    enum: ["UPI", "Bank Transfer", "Card", "Wallet", "COD"],
+    enum: ["UPI", "Bank Transfer", "Card", "Wallet", "COD", "PayFast"],
   },
   date: {
     type: Date,

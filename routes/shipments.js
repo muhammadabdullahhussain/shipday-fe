@@ -5,7 +5,8 @@ const {
   getAllShipments,
   updateOrderStatus,
   getShipmentMetrics,
-  getShipmentStatusBreakdown
+  getShipmentStatusBreakdown,
+  trackShipment
 } = require('../controller/shipment');
 const { createShipment, getShipmentById, updateShipment } = require('../controller/admin');
 
@@ -14,6 +15,7 @@ router.post('/generate', generateShipments);
 router.patch('/orders/status', updateOrderStatus);
 router.get('/metrics', getShipmentMetrics);
 router.get('/status-breakdown', getShipmentStatusBreakdown);
+router.get('/track/:trackingNumber', trackShipment); // Public tracking route
 router.get('/', getAllShipments);
 router.post('/', createShipment);
 router.get('/:shipmentId', getShipmentById);

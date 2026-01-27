@@ -1,17 +1,17 @@
 
 const express = require('express');
 const router = express.Router();
-const { createOrder,getOrderById,deleteOrderById,getAllOrders,updateOrderStatus,getOrdersByPhone,getOrdersWithTracking } = require('../controller/order');
+const { createOrder, getOrderById, deleteOrderById, getAllOrders, updateOrderStatus, getOrdersByPhone, getOrdersWithTracking } = require('../controller/order');
 const { getOrderDetails, getShipmentById } = require('../controller/admin');
 
-router.post('/orders', createOrder); 
-router.get('/orders/with-tracking', getOrdersWithTracking);
-router.get('/orders/by-phone/:phone', getOrdersByPhone);
-router.get('/orders/details/:orderId', getOrderDetails);
-router.get('/orders/:id', getOrderById);
-router.get('/orders', getAllOrders);
-router.put('/orders/:id/status', updateOrderStatus);
-router.delete('/orders/:id', deleteOrderById); 
+router.post('/', createOrder);
+router.get('/with-tracking', getOrdersWithTracking);
+router.get('/by-phone/:phone', getOrdersByPhone);
+router.get('/details/:orderId', getOrderDetails);
+router.get('/:id', getOrderById);
+router.get('/', getAllOrders);
+router.put('/:id/status', updateOrderStatus);
+router.delete('/:id', deleteOrderById);
 router.get('/shipments/:shipmentId', getShipmentById);
 
 

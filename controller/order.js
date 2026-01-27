@@ -3,21 +3,52 @@ const User = require('../models/User'); // Add if not already imported
 const getCoordinates = require('../utils/getCoordinates');
 const Notification = require('../models/Notification'); //  Import Notification model
 const Shipment = require("../models/Shipment");
+const Pricing = require('../models/Pricing');
 
 
 
 
 
-const calculateCost = (weight, deliveryType) => {
-  const w = parseFloat(weight);
-  if (deliveryType === 'express') {
-    if (w <= 1) return 100;
-    if (w <= 5) return 250;
-    return 400;
-  } else {
-    if (w <= 1) return 50;
-    if (w <= 5) return 150;
-    return 250;
+const calculateCost = async (weight, dimensions, deliveryType, packageType) => {
+  try {
+    let pricing = await Pricing.findOne();
+    if (!pricing) {
+      // fallback defaults if no config found
+      pricing = {
+        economy: { baseAmount: 20, divisor: 5000, rate: 1.2 },
+        express: { baseAmount: 40, divisor: 4000, rate: 1.2 },
+        satchel: { a4: 90, a3: 110 }
+      };
+    }
+
+    // Satchel Logic
+    if (packageType && packageType.toLowerCase().includes('satchel')) {
+      if (packageType.toLowerCase().includes('a4')) return pricing.satchel.a4;
+      if (packageType.toLowerCase().includes('a3')) return pricing.satchel.a3;
+      // default satchel fallback?
+      return pricing.satchel.a4;
+    }
+
+    let config = deliveryType === 'express' ? pricing.express : pricing.economy;
+    const { divisor, rate, baseAmount } = config;
+
+    // Volumetric Calculation
+    let volWeight = 0;
+    if (dimensions) {
+      // Assume format "LxWxH" e.g. "10x20x5"
+      const parts = dimensions.toLowerCase().split('x').map(p => parseFloat(p.trim()));
+      if (parts.length === 3 && !parts.some(isNaN)) {
+        volWeight = (parts[0] * parts[1] * parts[2]) / divisor;
+      }
+    }
+
+    const actualWeight = parseFloat(weight) || 0;
+    const chargeableWeight = Math.max(actualWeight, volWeight);
+
+    return baseAmount + (chargeableWeight * rate);
+  } catch (err) {
+    console.error("Pricing calculation error:", err);
+    return 0;
   }
 };
 
@@ -54,7 +85,7 @@ exports.createOrder = async (req, res) => {
     const user = await User.findOne({ phone: senderPhone });
 
     const coordinates = await getCoordinates(deliveryAddress);
-    const cost = calculateCost(weight, deliveryType);
+    const cost = await calculateCost(weight, dimensions, deliveryType, packageType);
     const insurance = 20;
     const gst = 0.18 * cost;
     const totalAmount = cost + insurance + gst;
@@ -103,13 +134,13 @@ exports.getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    
+
     // Ensure cost field exists
     const orderData = {
       ...order.toObject(),
       cost: order.cost || 0
     };
-    
+
     res.json({ order: orderData });
   } catch (err) {
     console.error('Error fetching order:', err);
@@ -131,13 +162,13 @@ exports.deleteOrderById = async (req, res) => {
 exports.getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
-    
+
     // Ensure all orders have cost field
     const ordersWithCost = orders.map(order => ({
       ...order.toObject(),
       cost: order.cost || 0
     }));
-    
+
     res.json({ orders: ordersWithCost });
   } catch (err) {
     console.error('Error fetching orders:', err);
@@ -215,15 +246,15 @@ exports.getOrdersWithTracking = async (req, res) => {
         shipmentStatus: shipment?.status || "Unassigned",
         route: shipment
           ? {
-              start: {
-                lat: shipment.startLatitude,
-                lon: shipment.startLongitude,
-              },
-              end: {
-                lat: shipment.latitude,
-                lon: shipment.longitude,
-              },
-            }
+            start: {
+              lat: shipment.startLatitude,
+              lon: shipment.startLongitude,
+            },
+            end: {
+              lat: shipment.latitude,
+              lon: shipment.longitude,
+            },
+          }
           : null,
         driver: shipment?.driverName || "Unassigned",
       };

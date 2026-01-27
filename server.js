@@ -17,21 +17,21 @@ app.use(corsMiddleware);
 // Import routes
 const routes = require('./routes');
 
-// Socket setup
+// Socket setupxp
 const server = http.createServer(app);
 const io = initializeSocket(server);
 
 // Make io accessible
 app.set('io', io);
- 
+
 // Health check endpoint
 app.get('/', (req, res) => {
-  res.status(200).json({ message: 'Swift Ship API is running', timestamp: new Date().toISOString() });
+  res.status(200).json({ message: 'ShipDay API is running', timestamp: new Date().toISOString() });
 });
 
 // Use routes
 app.use('/api', routes);
- 
+
 // DB Connection
 if (!process.env.MONGO_URI) {
   console.error('❌ MONGO_URI environment variable is not set');
@@ -49,4 +49,3 @@ mongoose.connect(process.env.MONGO_URI)
     console.error('❌ DB Connection Error:', err.message);
     process.exit(1);
   });
- 

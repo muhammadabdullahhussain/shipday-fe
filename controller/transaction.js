@@ -39,7 +39,48 @@ exports.createTransaction = async (req, res) => {
 
 exports.getAllTransactions = async (req, res) => {
   try {
-    const transactions = await Transaction.find().sort({ date: -1 });
+    let query = {};
+    if (req.user && req.user.role === 'Customer') {
+      // Combine all possible identifiers: Name, Company, CustomerID, Email
+      const identifiers = [
+        req.user.fullName,
+        req.user.companyName,
+        req.user.customerId,
+        req.user.email
+      ].filter(Boolean);
+
+      // Split names but keep IDs/Emails whole if possible, simplify by splitting all string parts
+      // Actually, for ID 'CUST001', splitting by space is fine (it has no space).
+      // For email, we might want to split or keep whole. Let's keep whole first then split names.
+
+      const searchTerms = [];
+      // Add exact identifiers first
+      identifiers.forEach(id => searchTerms.push(id));
+      // Add name parts
+      if (req.user.fullName) {
+        req.user.fullName.split(' ').forEach(part => {
+          if (part.length > 2) searchTerms.push(part);
+        });
+      }
+
+      // Deduplicate
+      const uniqueTerms = [...new Set(searchTerms)];
+
+      const regexConditions = uniqueTerms.map(term => ({
+        customer: { $regex: new RegExp(term, 'i') }
+      }));
+
+      query['$or'] = [
+        { userId: req.user._id },
+        ...regexConditions
+      ];
+
+      // Fallback
+      if (query['$or'].length === 0) {
+        query.customer = { $regex: new RegExp(req.user.fullName || 'impossible_match', 'i') };
+      }
+    }
+    const transactions = await Transaction.find(query).sort({ date: -1 });
     res.status(200).json(transactions);
   } catch (error) {
     console.error("Error fetching transactions:", error);

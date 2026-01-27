@@ -4,6 +4,7 @@ const Shipment = require('../models/Shipment');
 const Order = require('../models/Order');
 // Trigger server restart for logic update
 const { sendPushNotification } = require('../utils/pushNotification');
+const { sendShipmentStatusEmail } = require('../utils/shipmentEmailTemplates');
 
 // Get drivers by vehicle type
 const getDriversByVehicleType = async (req, res) => {
@@ -146,6 +147,9 @@ const createShipment = async (req, res) => {
           amount: payment?.amount || cost || 0,
           status: 'pending'
         },
+        // Auto-assign customer if creator is a Customer
+        customer: (req.user && req.user.role === 'Customer') ? req.user._id : null,
+
         // Populate legacy fields for compatibility - REQUIRED to avoid validation error
         senderName: senderDetails.fullName || 'N/A',
         senderPhone: senderDetails.mobile || '0000000000',
@@ -216,6 +220,37 @@ const createShipment = async (req, res) => {
     const shipment = new Shipment(shipmentData);
     await shipment.save();
 
+    // Create Transaction Record
+    try {
+      const Transaction = require('../models/Transaction');
+      const { v4: uuidv4 } = require('uuid');
+
+      const userId = (req.user && req.user._id) ? req.user._id : null;
+      // Identify customer name - use User's name if logged in, otherwise Sender Name
+      const customerName = (req.user && req.user.fullName)
+        ? req.user.fullName
+        : (shipmentData.senderDetails?.fullName || shipmentData.senderName || 'Guest');
+
+      const txnData = {
+        txnId: "TXN-" + uuidv4().slice(0, 8).toUpperCase(),
+        customer: customerName,
+        userId: userId,
+        type: 'Debit', // Shipment creation is a debit (cost) usually, or just a record? Defaults to 'Debit' in context of "Cost"
+        amount: shipmentData.payment?.amount || shipmentData.cost || 0,
+        method: shipmentData.payment?.method || 'COD',
+        status: (shipmentData.payment?.status === 'paid' || shipmentData.payment?.status === 'completed') ? 'Completed' : 'Pending',
+        orderId: shipment.shipmentId
+      };
+
+      await new Transaction(txnData).save();
+      console.log(`Transaction created for shipment ${shipment.shipmentId}`);
+    } catch (txnError) {
+      console.error("Failed to create transaction record:", txnError.message);
+    }
+
+    // Trigger automatic email notification for new shipment
+    await sendShipmentStatusEmail(shipment, 'Pending Collect');
+
     // Generate PayFast data if payment method is gateway or wallet
     let paymentData = null;
     if (shipment.payment && (shipment.payment.method === 'gateway' || shipment.payment.method === 'wallet' || shipment.payment.method === 'payfast' || shipment.payment.method === 'ewallet')) {
@@ -265,9 +300,12 @@ const assignShipmentToDriver = async (req, res) => {
   }
 
   try {
-    const shipment = await Shipment.findOne({ shipmentId, status: 'Pending' });
+    const shipment = await Shipment.findOne({
+      shipmentId,
+      status: { $nin: ['Delivered', 'Cancelled'] }
+    });
     if (!shipment) {
-      return res.status(404).json({ message: 'Pending shipment not found' });
+      return res.status(404).json({ message: 'Shipment not found (must be Pending or Shipping)' });
     }
 
     console.log('Looking for driver with ID:', driverId);
@@ -337,6 +375,9 @@ const assignShipmentToDriver = async (req, res) => {
         notification
       });
     }
+
+    // Trigger automatic email notification
+    await sendShipmentStatusEmail(updatedShipment, 'Shipping');
 
     res.status(200).json({
       message: 'Shipment assigned successfully',
@@ -415,7 +456,7 @@ const getAllShipments = async (req, res) => {
 
 // Update shipment details
 const updateShipment = async (req, res) => {
-  const { shipmentId, senderName, senderPhone, receiverName, receiverPhone, start, end, parcelWeight, packageType, cost, eta, notes } = req.body;
+  const { shipmentId, senderName, senderPhone, receiverName, receiverPhone, start, end, parcelWeight, packageType, cost, eta, notes, status } = req.body;
 
   if (!shipmentId) {
     return res.status(400).json({ message: 'shipmentId is required' });
@@ -434,6 +475,7 @@ const updateShipment = async (req, res) => {
     if (cost) updateData.cost = cost;
     if (eta) updateData.eta = new Date(eta);
     if (notes !== undefined) updateData.notes = notes;
+    if (status) updateData.status = status;
 
     const shipment = await Shipment.findOneAndUpdate(
       { shipmentId },
@@ -443,6 +485,11 @@ const updateShipment = async (req, res) => {
 
     if (!shipment) {
       return res.status(404).json({ message: 'Shipment not found' });
+    }
+
+    // Trigger automatic email notification if status was updated
+    if (status) {
+      await sendShipmentStatusEmail(shipment, status);
     }
 
     res.status(200).json({
@@ -515,6 +562,82 @@ const downloadPOD = async (req, res) => {
   }
 };
 
+// Create new customer manually from dashboard
+const createCustomer = async (req, res) => {
+  const { fullName, email, password, companyName, phone, address } = req.body;
+  const User = require('../models/User');
+  const bcrypt = require('bcryptjs');
+
+  console.log("DEBUG: createCustomer called with:", req.body);
+
+  if (!fullName || !email || !password) {
+    return res.status(400).json({ message: 'Full Name, Email, and Password are required' });
+  }
+
+  try {
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists with this email' });
+    }
+
+    // Generate Customer ID
+    const generateCustomerId = async () => {
+      const count = await User.countDocuments();
+      const nextNumber = count + 1;
+      const padded = String(nextNumber).padStart(3, '0');
+      return `CUST${padded}`;
+    };
+
+    const customerId = await generateCustomerId();
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create User (Customer)
+    const newUser = new User({
+      customerId,
+      email,
+      password: hashedPassword,
+      fullName,
+      companyName,
+      phone,
+      role: 'Customer',
+      location: {
+        address: address || ''
+      }
+    });
+
+    await newUser.save();
+
+    res.status(201).json({
+      message: 'Customer created successfully',
+      customer: {
+        id: newUser.customerId,
+        name: newUser.fullName,
+        email: newUser.email,
+        company: newUser.companyName,
+        role: newUser.role
+      }
+    });
+
+  } catch (err) {
+    console.error("Create Customer Error:", err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// Delete Driver
+const deleteDriver = async (req, res) => {
+  const { driverId } = req.params;
+  try {
+    const driver = await Driver.findOneAndDelete({ driverId });
+    if (!driver) {
+      return res.status(404).json({ message: 'Driver not found' });
+    }
+    res.status(200).json({ message: 'Driver deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
 module.exports = {
   getPendingDrivers,
   getAcceptedDrivers,
@@ -530,5 +653,7 @@ module.exports = {
   updateShipment,
   deleteShipment,
   downloadWaybill,
-  downloadPOD
+  downloadPOD,
+  createCustomer,
+  deleteDriver
 };

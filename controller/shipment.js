@@ -4,6 +4,7 @@ const Order = require('../models/Order');
 const Tracking = require('../models/tracking');
 const generateShipmentId = require('../utils/generateShipmentId');
 const isWithinRadius = require('../utils/isWithinRadius');
+const { sendShipmentStatusEmail } = require('../utils/shipmentEmailTemplates');
 
 
 function getRandomStatus() {
@@ -131,10 +132,39 @@ exports.generateShipments = async (req, res) => {
 
 exports.getAllShipments = async (req, res) => {
   try {
-    const shipments = await Shipment.find()
+    const { status } = req.query;
+    const query = {};
+
+    // If status is provided, filter by it. 
+    if (status) {
+      query.status = status;
+    }
+
+    // Role-based filtering
+    if (req.user) {
+      const { role, email, _id } = req.user;
+
+      if (role === 'Customer') {
+        // Customer sees shipments they created (linked by ID) or matched email
+        query['$or'] = [
+          { customer: _id },
+          { 'senderDetails.email': email },
+          { 'senderEmail': email },
+          { 'deliveryDetails.email': email },
+          { 'receiverEmail': email }
+        ];
+      } else if (role === 'Driver') {
+        // Driver sees assigned shipments
+        query.driver = _id;
+      }
+      // Admins and Managers see all
+    }
+
+    const shipments = await Shipment.find(query)
       .populate("orders")
       .populate({
         path: 'driver',
+        model: 'Driver',
         select: 'username driverId vehicleType',
         options: { strictPopulate: false }
       })
@@ -172,7 +202,11 @@ exports.updateOrderStatus = async (req, res) => {
 
     if (allDelivered && shipment.status !== "Delivered") {
       shipment.status = "Delivered";
+      shipment.deliveredAt = new Date();
       await shipment.save();
+
+      // Trigger automatic email notification
+      await sendShipmentStatusEmail(shipment, "Delivered");
     }
 
     res.status(200).json({
@@ -282,6 +316,43 @@ exports.getShipmentStatusBreakdown = async (req, res) => {
   }
 };
 
+exports.trackShipment = async (req, res) => {
+  try {
+    const { trackingNumber } = req.params;
+    const shipment = await Shipment.findOne({
+      $or: [{ trackingNumber: trackingNumber }, { shipmentId: trackingNumber }]
+    })
+      .populate('driver', 'username mobile vehicleType')
+      .populate('orders');
+
+    if (!shipment) {
+      return res.status(404).json({ message: "Shipment not found" });
+    }
+
+    // Map history or recent updates if needed
+    // For now, return basic info and status
+    const trackingHistory = [
+      { status: 'Order Created', location: shipment.collectionDetails?.address?.city || 'Origin', date: shipment.createdAt, done: true, icon: 'bi-box-seam' },
+      { status: 'Collected', location: shipment.collectionDetails?.address?.city || 'Distribution Center', date: shipment.dateShipped || shipment.updatedAt, done: ['Shipping', 'Delivered'].includes(shipment.status), icon: 'bi-truck' },
+      { status: 'In Transit', location: 'On Route', date: shipment.updatedAt, done: ['Shipping', 'Delivered'].includes(shipment.status), icon: 'bi-geo-alt' },
+      { status: 'Delivered', location: shipment.deliveryDetails?.address?.city || 'Destination', date: shipment.deliveredAt || shipment.updatedAt, done: shipment.status === 'Delivered', icon: 'bi-house-check' }
+    ];
+
+    res.status(200).json({
+      shipment: {
+        trackingNumber: shipment.trackingNumber,
+        status: shipment.status,
+        currentLocation: shipment.status === 'Delivered' ? shipment.deliveryDetails?.address?.city : 'In Transit',
+        updatedAt: shipment.updatedAt,
+        history: trackingHistory
+      }
+    });
+  } catch (err) {
+    console.error("❌ Error tracking shipment:", err.stack || err);
+    res.status(500).json({ message: "Failed to track shipment" });
+  }
+};
+
 module.exports = {
   generateShipments: exports.generateShipments,
   getAllShipments: exports.getAllShipments,
@@ -289,6 +360,7 @@ module.exports = {
   syncShipmentStatuses: exports.syncShipmentStatuses,
   getShipmentCount: exports.getShipmentCount,
   getShipmentMetrics: exports.getShipmentMetrics,
-  getShipmentStatusBreakdown: exports.getShipmentStatusBreakdown
+  getShipmentStatusBreakdown: exports.getShipmentStatusBreakdown,
+  trackShipment: exports.trackShipment
 };
 

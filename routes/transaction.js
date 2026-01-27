@@ -8,8 +8,10 @@ const {
   getMonthlyRevenueBreakdown,
 } = require("../controller/transaction");
 
+const authMiddleware = require("../middleware/authMiddleware");
+
 router.post("/create", createTransaction);
-router.get("/all", getAllTransactions);
+router.get("/all", authMiddleware, getAllTransactions);
 router.get("/total-revenue", getTotalRevenue);
 router.get("/monthly-revenue", getMonthlyRevenue);
 router.get("/monthly-revenue-breakdown", getMonthlyRevenueBreakdown);

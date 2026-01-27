@@ -3,10 +3,10 @@ const router = express.Router();
 const warehouseController = require("../controller/warehouse");
 
 // POST /api/warehouse/add
-router.post("/warehouse/add", warehouseController.addWarehouse);
+router.post("/add", warehouseController.addWarehouse);
 
 // GET /api/warehouse/all
-router.get("/warehouse/all", warehouseController.getAllWarehouses);
+router.get("/all", warehouseController.getAllWarehouses);
 router.delete("/delete/:id", warehouseController.deleteWarehouse);
 router.put("/update/:id", warehouseController.updateWarehouse);
 

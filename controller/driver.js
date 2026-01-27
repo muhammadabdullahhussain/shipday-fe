@@ -5,6 +5,7 @@ const Notification = require('../models/Notification');
 const Delivery = require('../models/Delivery');
 const Shipment = require('../models/Shipment');
 const sendMail = require("../utils/mail");
+const { sendShipmentStatusEmail } = require('../utils/shipmentEmailTemplates');
 const Token = require('../models/Token');
 
 const bcrypt = require('bcryptjs');
@@ -25,11 +26,11 @@ const generateDriverId = async () => {
   let driverId;
   let isUnique = false;
   let counter = 1;
-  
+
   while (!isUnique) {
     const padded = String(counter).padStart(3, '0');
     driverId = `DRV${padded}`;
-    
+
     const existing = await Driver.findOne({ driverId });
     if (!existing) {
       isUnique = true;
@@ -37,7 +38,7 @@ const generateDriverId = async () => {
       counter++;
     }
   }
-  
+
   return driverId;
 };
 
@@ -68,14 +69,27 @@ const sendVerificationCode = async (email) => {
   );
 
   const text = `Your driver verification code is: ${code}. It will expire in 15 minutes.`;
-  await sendMail(email, "Driver Verification Code", text);
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+      <h2 style="color: #0f172a; text-align: center;">Driver Verification Code</h2>
+      <p style="font-size: 16px; color: #4b5563;">Hello,</p>
+      <p style="font-size: 16px; color: #4b5563;">Your driver verification code is:</p>
+      <div style="font-size: 32px; font-weight: bold; color: #10b981; text-align: center; padding: 20px; margin: 20px 0; background: #f8fafc; border-radius: 8px; letter-spacing: 5px;">
+        ${code}
+      </div>
+      <p style="font-size: 14px; color: #9ca3af; text-align: center;">This code will expire in 15 minutes.</p>
+      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+      <p style="font-size: 12px; color: #9ca3af; text-align: center;">If you didn't request this code, please ignore this email.</p>
+    </div>
+  `;
+  await sendMail(email, "Driver Verification Code - ShipDay", text, html);
 };
 
 // Verify OTP and create driver account
 const requestDriverVerificationCode = async (req, res) => {
   const { email, code } = req.body;
   const sanitizedEmail = validateEmail(email);
-  
+
   if (!sanitizedEmail || !code) {
     return res.status(400).json({ message: 'Email and verification code are required' });
   }
@@ -127,9 +141,9 @@ const requestDriverVerificationCode = async (req, res) => {
       "registration"
     );
 
-    res.status(201).json({ 
+    res.status(201).json({
       message: 'Driver registered successfully. Account is pending approval.',
-      driverId: driver.driverId 
+      driverId: driver.driverId
     });
   } catch (err) {
     console.error('Verification error:', err);
@@ -144,7 +158,7 @@ const requestDriverVerificationCode = async (req, res) => {
 const registerDriver = async (req, res) => {
   const { username, email, phone, password, vehicleType, vehicleNumber, idProof } = req.body;
   const sanitizedEmail = validateEmail(email);
-  
+
   if (!username || !sanitizedEmail || !phone || !password || !vehicleType || !vehicleNumber || (!req.file && !idProof)) {
     return res.status(400).json({ message: 'All fields including ID proof are required' });
   }
@@ -160,13 +174,13 @@ const registerDriver = async (req, res) => {
   }
 
   try {
-    const existingDriver = await Driver.findOne({ 
+    const existingDriver = await Driver.findOne({
       $or: [
         { email: sanitizedEmail },
         { vehicleNumber: vehicleNumber.trim() }
       ]
     });
-    
+
     if (existingDriver) {
       return res.status(400).json({ message: 'Driver already exists with this email or vehicle number' });
     }
@@ -229,13 +243,13 @@ const loginDriver = async (req, res) => {
     const assignedDeliveries = await Delivery.countDocuments({ driverName: driver.username, status: 'assigned' });
     const completedDeliveries = await Delivery.countDocuments({ driverName: driver.username, status: 'delivered' });
     const pendingDeliveries = await Delivery.countDocuments({ driverName: driver.username, status: { $in: ['in_transit', 'picked_up'] } });
-    
+
     // Calculate earnings (assuming each delivery has a fixed rate)
     const earnings = completedDeliveries * 50; // $50 per delivery
 
     const token = jwt.sign(
-      { id: driver._id, email: driver.email, role: 'driver' }, 
-      process.env.JWT_SECRET, 
+      { id: driver._id, email: driver.email, role: 'driver' },
+      process.env.JWT_SECRET,
       { expiresIn: '2h' }
     );
 
@@ -244,7 +258,7 @@ const loginDriver = async (req, res) => {
     res.status(200).json({
       message: 'Login successful',
       token,
-      driver: { 
+      driver: {
         driverId: driver.driverId,
         username: driver.username,
         email: driver.email,
@@ -269,51 +283,51 @@ const loginDriver = async (req, res) => {
 // Get driver notifications
 const getDriverNotifications = async (req, res) => {
   const { driverId } = req.params;
-  
+
   try {
     console.log('Looking for driver with ID:', driverId);
     const driver = await Driver.findOne({ driverId });
     console.log('Driver found:', driver ? 'Yes' : 'No');
-    
+
     if (!driver) {
       return res.status(404).json({ message: 'Driver not found' });
     }
 
     console.log('Driver ObjectId:', driver._id);
     console.log('Driver ObjectId as string:', driver._id.toString());
-    
+
     // Get all notifications for debugging
     const allNotifications = await Notification.find({}).sort({ createdAt: -1 });
     console.log('Total notifications in DB:', allNotifications.length);
-    console.log('All notification userIds:', allNotifications.map(n => ({ 
-      userId: n.userId?.toString(), 
-      type: n.type, 
+    console.log('All notification userIds:', allNotifications.map(n => ({
+      userId: n.userId?.toString(),
+      type: n.type,
       title: n.title,
-      message: n.message.substring(0, 50) + '...' 
+      message: n.message.substring(0, 50) + '...'
     })));
-    
+
     // Try both exact match and string comparison
-    const notifications = await Notification.find({ 
+    const notifications = await Notification.find({
       userId: driver._id,
       type: 'shipment_assigned'
     }).sort({ createdAt: -1 });
-    
+
     console.log('Notifications found for driver:', notifications.length);
-    
+
     // If still no notifications, check for shipment-related notifications by message content
     if (notifications.length === 0) {
       const shipmentNotifications = await Notification.find({
         type: 'shipment_assigned',
         message: { $regex: 'SHP900155', $options: 'i' }
       }).sort({ createdAt: -1 });
-      
+
       console.log('Shipment notifications found by message search:', shipmentNotifications.length);
       if (shipmentNotifications.length > 0) {
         console.log('Found shipment notification with userId:', shipmentNotifications[0].userId?.toString());
         console.log('Expected userId:', driver._id.toString());
       }
     }
-    
+
     res.status(200).json({ notifications });
   } catch (err) {
     console.error('Error in getDriverNotifications:', err);
@@ -324,7 +338,7 @@ const getDriverNotifications = async (req, res) => {
 // Get driver's assigned shipments
 const getDriverShipments = async (req, res) => {
   const { driverId } = req.params;
-  
+
   try {
     const driver = await Driver.findOne({ driverId });
     if (!driver) {
@@ -333,7 +347,7 @@ const getDriverShipments = async (req, res) => {
 
     const shipments = await Shipment.find({ driver: driver._id })
       .sort({ createdAt: -1 });
-    
+
     res.status(200).json({ shipments });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -343,31 +357,41 @@ const getDriverShipments = async (req, res) => {
 // Update shipment status by driver
 const updateShipmentStatus = async (req, res) => {
   const { shipmentId, status } = req.body;
-  
+
   if (!shipmentId || !status) {
     return res.status(400).json({ message: 'shipmentId and status are required' });
   }
 
-  if (!['Delivered'].includes(status)) {
-    return res.status(400).json({ message: 'Invalid status. Only "Delivered" is allowed' });
+  const allowedStatuses = ['Collected', 'In-transit', 'Out For delivery', 'Delivered'];
+  if (!allowedStatuses.includes(status)) {
+    return res.status(400).json({ message: `Invalid status. Allowed statuses: ${allowedStatuses.join(', ')}` });
   }
 
   try {
+    const updateFields = { status };
+    if (status === 'Delivered') {
+      updateFields.deliveredAt = new Date();
+    }
+
     const shipment = await Shipment.findOneAndUpdate(
-      { shipmentId, status: 'Shipping' },
-      { status, deliveredAt: new Date() },
+      { shipmentId },
+      updateFields,
       { new: true }
     );
 
     if (!shipment) {
-      return res.status(404).json({ message: 'Shipping shipment not found' });
+      return res.status(404).json({ message: 'Shipment not found' });
     }
 
-    res.status(200).json({ 
-      message: 'Shipment status updated successfully',
+    // Trigger automatic email notification
+    await sendShipmentStatusEmail(shipment, status);
+
+    res.status(200).json({
+      message: `Shipment status updated to ${status} successfully`,
       shipment
     });
   } catch (err) {
+    console.error('Update Shipment Status Error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
@@ -376,7 +400,7 @@ const updateShipmentStatus = async (req, res) => {
 const updateDriverFCMToken = async (req, res) => {
   const { driverId } = req.params;
   const { fcmToken } = req.body;
-  
+
   if (!fcmToken) {
     return res.status(400).json({ message: 'FCM token is required' });
   }
@@ -392,7 +416,7 @@ const updateDriverFCMToken = async (req, res) => {
       return res.status(404).json({ message: 'Driver not found' });
     }
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'FCM token updated successfully'
     });
   } catch (err) {
@@ -403,7 +427,7 @@ const updateDriverFCMToken = async (req, res) => {
 // Test push notification
 const testPushNotification = async (req, res) => {
   const { driverId } = req.params;
-  
+
   try {
     const driver = await Driver.findOne({ driverId });
     if (!driver) {
@@ -422,7 +446,7 @@ const testPushNotification = async (req, res) => {
       { type: 'test' }
     );
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Test push notification sent successfully'
     });
   } catch (err) {
@@ -433,14 +457,14 @@ const testPushNotification = async (req, res) => {
 // Check if driver exists
 const checkDriver = async (req, res) => {
   const { driverId } = req.params;
-  
+
   try {
     const driver = await Driver.findOne({ driverId }).select('-password');
     if (!driver) {
       return res.status(404).json({ message: 'Driver not found' });
     }
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Driver found',
       driver
     });
@@ -453,7 +477,7 @@ const checkDriver = async (req, res) => {
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
   const sanitizedEmail = validateEmail(email);
-  
+
   if (!sanitizedEmail) {
     return res.status(400).json({ message: 'Valid email is required' });
   }
@@ -476,7 +500,7 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   const { email, code, newPassword } = req.body;
   const sanitizedEmail = validateEmail(email);
-  
+
   if (!sanitizedEmail || !code || !newPassword) {
     return res.status(400).json({ message: 'Email, verification code, and new password are required' });
   }
@@ -534,8 +558,8 @@ const cleanupLoginNotifications = async (req, res) => {
   try {
     const result = await Notification.deleteMany({ type: 'login' });
     console.log('Deleted login notifications:', result.deletedCount);
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       message: `Successfully deleted ${result.deletedCount} login notifications`
     });
   } catch (err) {
@@ -546,7 +570,7 @@ const cleanupLoginNotifications = async (req, res) => {
 // Test notification creation for driver
 const createTestNotification = async (req, res) => {
   const { driverId } = req.params;
-  
+
   try {
     const driver = await Driver.findOne({ driverId });
     if (!driver) {
@@ -559,13 +583,13 @@ const createTestNotification = async (req, res) => {
       message: 'This is a test notification to verify the system works.',
       type: 'shipment_assigned'
     });
-    
+
     await notification.save();
     console.log('Test notification created for driver:', driver.driverId);
     console.log('Notification userId:', notification.userId);
     console.log('Driver ObjectId:', driver._id);
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       message: 'Test notification created successfully',
       notification
     });
@@ -577,7 +601,7 @@ const createTestNotification = async (req, res) => {
 // Debug function to check notification-driver relationship
 const debugNotifications = async (req, res) => {
   const { driverId } = req.params;
-  
+
   try {
     const driver = await Driver.findOne({ driverId });
     if (!driver) {
@@ -586,15 +610,15 @@ const debugNotifications = async (req, res) => {
 
     // Get all notifications
     const allNotifications = await Notification.find({}).sort({ createdAt: -1 });
-    
+
     // Get notifications for this driver
     const driverNotifications = await Notification.find({ userId: driver._id });
-    
+
     // Check for shipment SHP900155 specifically
     const shipmentNotifications = await Notification.find({
       message: { $regex: 'SHP900155', $options: 'i' }
     });
-    
+
     res.status(200).json({
       driverInfo: {
         driverId: driver.driverId,

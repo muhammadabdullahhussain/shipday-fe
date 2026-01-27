@@ -1,0 +1,1 @@
+const mongoose = require('mongoose'); require('dotenv').config(); const Shipment = require('./models/Shipment'); mongoose.connect(process.env.MONGO_URI).then(async () => { const s = await Shipment.findOne(); console.log('Sample Shipment:', s ? s.trackingNumber : 'None'); process.exit(); });

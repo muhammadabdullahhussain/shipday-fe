@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const shipmentSchema = new mongoose.Schema({
   shipmentId: { type: String, required: true, unique: true },
+  customer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
 
   // Sender Details
   senderDetails: {
@@ -69,7 +74,8 @@ const shipmentSchema = new mongoose.Schema({
       height: Number,
       weight: { type: Number }
     },
-    specialInstructions: String
+    specialInstructions: String,
+    satchelSize: { type: String, enum: ['none', 'A4', 'A3'], default: 'none' }
   },
 
   // Payment Details
@@ -97,8 +103,20 @@ const shipmentSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['Pending', 'Shipping', 'Delivered'],
-    default: 'Pending'
+    enum: [
+      'Pending Collect',
+      'Inhouse',
+      'Collected',
+      'Shipping',
+      'In-transit',
+      'Returning to Sender',
+      'Inter hub',
+      'Inter region',
+      'Out For delivery',
+      'Failed Delivery',
+      'Delivered'
+    ],
+    default: 'Pending Collect'
   },
   driver: {
     type: mongoose.Schema.Types.ObjectId,

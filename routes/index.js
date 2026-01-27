@@ -3,6 +3,7 @@ const router = express.Router();
 
 // Import routes
 const authRoutes = require('./auth');
+const authController = require('../controller/auth'); // Import controller for direct route
 const adminRoutes = require('./admin');
 const shipmentsRoutes = require('./shipments');
 const verificationRoutes = require('./verification');
@@ -21,8 +22,12 @@ const notificationRoutes = require('./notificationRoutes');
 const walletRoutes = require('./walletRoutes');
 const driverRoutes = require('./driver');
 const pricingRoutes = require('./pricingRoutes');
+const contactRoutes = require('./contactRoutes');
 
 // Use routes
+router.get('/user', authController.getUserByEmail); // Fix for missing /api/user route
+router.get('/user/:id', authController.getUserById); // Get user by _id
+router.get('/customers', authController.getAllCustomers); // Fix for missing /api/customers route
 router.use('/auth', authRoutes);
 router.use('/admin', adminRoutes);
 router.use('/pricing', pricingRoutes); // New Route
@@ -30,17 +35,18 @@ router.use('/shipments', shipmentsRoutes);
 router.use('/verification', verificationRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/staff', staffRoutes);
-router.use('/warehouses', warehouseRoutes);
+router.use('/warehouse', warehouseRoutes);
 router.use('/warehouse-staff', warehouseStaffRoutes);
 router.use('/transactions', transactionRoutes);
 router.use('/orders', orderRoutes);
 router.use('/fleet', fleetRoutes);
-router.use('/tracking', trackingRoutes);
+router.use('/trackings', trackingRoutes);
 router.use('/deliveries', deliveryRoutes);
 router.use('/roles', roleRoutes);
 router.use('/company-info', companyInfoRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/wallets', walletRoutes);
 router.use('/drivers', driverRoutes);
+router.use('/contact', contactRoutes);
 
 module.exports = router;

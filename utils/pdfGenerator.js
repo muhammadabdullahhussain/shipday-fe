@@ -16,161 +16,179 @@ const drawBox = (doc, x, y, width, height, title) => {
 };
 
 const generateWaybill = (shipment, res) => {
-    const doc = new PDFDocument({ margin: 30, size: 'A4' });
+    // A5 Landscape: ~595 x 420 pts
+    const doc = new PDFDocument({ margin: 15, size: 'A5', layout: 'landscape' });
 
-    // Pipe to response
     doc.pipe(res);
 
-    // ================= HEADER =================
+    // Helpers
+    const drawSectionHeader = (x, y, w, title) => {
+        doc.fillColor('#d1d5db').rect(x, y, w, 15).fill();
+        doc.rect(x, y, w, 15).strokeColor('#000000').lineWidth(0.5).stroke();
+        doc.fillColor('#000000').font('Helvetica-Bold').fontSize(8).text(title.toUpperCase(), x, y + 4, {
+            width: w,
+            align: 'center'
+        });
+    };
+
+    const drawSectionBody = (x, y, w, h) => {
+        doc.rect(x, y, w, h).strokeColor('#000000').lineWidth(0.5).stroke();
+    };
+
+    // ================= HEADER [Y: 15-75] =================
     // Logo
     const logoJPG = path.join(__dirname, '../assets/logo.jpg');
     const logoPNG = path.join(__dirname, '../assets/logo.png');
-
-    let hasLogo = false;
     if (fs.existsSync(logoJPG)) {
-        doc.image(logoJPG, 30, 30, { width: 120 });
-        hasLogo = true;
+        doc.image(logoJPG, 20, 15, { width: 110 });
     } else if (fs.existsSync(logoPNG)) {
-        doc.image(logoPNG, 30, 30, { width: 120 });
-        hasLogo = true;
+        doc.image(logoPNG, 20, 15, { width: 110 });
     }
 
-    // Waybill Title & Barcode Placeholder
-    const headerX = hasLogo ? 180 : 30;
+    // Centered Tracking Numbers
+    doc.font('Times-Roman').fontSize(32).text(shipment.shipmentId, 140, 15, { align: 'center', width: 320 });
 
-    doc.fontSize(24).font('Helvetica-Bold').text('WAYBILL', 400, 35, { align: 'right' });
-    doc.fontSize(10).font('Helvetica').text(`Ref: ${shipment.shipmentId}`, 400, 65, { align: 'right' });
-    doc.text(`Date: ${new Date(shipment.createdAt).toISOString().split('T')[0]}`, 400, 80, { align: 'right' });
+    // Middle ID
+    const midId = shipment.shipmentId.slice(-3);
+    doc.font('Helvetica-Bold').fontSize(26).text(midId, 140, 48, { align: 'center', width: 320 });
+    doc.fontSize(8).text(shipment.shipmentId, 140, 74, { align: 'center', width: 320 });
 
-    doc.moveDown(4);
+    // Right Side Labels
+    doc.font('Helvetica-Bold').fontSize(24).text('WAYBILL', 430, 20, { align: 'right' });
+    doc.fontSize(10).text(`Ref: ${shipment.shipmentId}`, 430, 48, { align: 'right' });
+    doc.text(`Date: ${new Date().toISOString().split('T')[0]}`, 430, 60, { align: 'right' });
 
-    // ================= SENDER & RECEIVER ROW ================= [Y ~ 120]
-    const boxY = 120;
-    const boxHeight = 110;
-    const boxWidth = 260;
 
-    // Sender Box
-    let contentY = drawBox(doc, 30, boxY, boxWidth, boxHeight, 'Sender Details');
-    if (shipment.senderDetails) {
-        doc.text(shipment.senderDetails.fullName || '', 40, contentY);
-        doc.font('Helvetica-Bold').text(shipment.senderDetails.company || '', 40, contentY + 12);
-        doc.font('Helvetica').text(shipment.senderDetails.mobile || '', 40, contentY + 24);
-        doc.text(shipment.senderDetails.email || '', 40, contentY + 36);
+    // ================= ROW 1 [Y: 85 - 170] =================
+    const row1Y = 85;
+    const colWidth = 185;
+    const row1Height = 85;
 
-        const addr = shipment.senderDetails.address;
-        doc.text(`${addr.street || ''}`, 40, contentY + 50);
-        doc.text(`${addr.suburb || ''}, ${addr.city || ''}`, 40, contentY + 62);
-        doc.text(`${addr.province || ''}, ${addr.postalCode || ''}`, 40, contentY + 74);
-    } else {
-        doc.text(shipment.senderName || 'N/A', 40, contentY);
-        doc.text(shipment.senderPhone || '', 40, contentY + 12);
+    // COL 1: SENDER
+    drawSectionHeader(20, row1Y, colWidth, 'SENDER DETAILS');
+    drawSectionBody(20, row1Y + 15, colWidth, row1Height);
+
+    const sender = shipment.senderDetails || { fullName: shipment.senderName, mobile: shipment.senderPhone, address: { city: shipment.start } };
+    doc.font('Helvetica').fontSize(8).fillColor('#000000');
+    let textY = row1Y + 20;
+    doc.text(sender.fullName || '', 25, textY);
+    doc.text(sender.company || '', 25, textY + 10);
+    doc.text(sender.mobile || '', 25, textY + 20);
+    if (sender.address) {
+        doc.text(sender.address.street || '', 25, textY + 30);
+        doc.text(`${sender.address.suburb || ''}, ${sender.address.city || ''}`, 25, textY + 40);
+        doc.text(sender.address.province || '', 25, textY + 50);
+        doc.text(sender.address.postalCode || '', 25, textY + 60);
     }
 
-    // Receiver Box
-    contentY = drawBox(doc, 305, boxY, boxWidth, boxHeight, 'Receiver Details');
-    if (shipment.deliveryDetails) {
-        doc.text(shipment.deliveryDetails.receiverName || '', 315, contentY);
-        doc.font('Helvetica-Bold').text(shipment.deliveryDetails.company || '', 315, contentY + 12);
-        doc.font('Helvetica').text(shipment.deliveryDetails.mobile || '', 315, contentY + 24);
-        doc.text(shipment.deliveryDetails.email || '', 315, contentY + 36);
+    // COL 2: RECEIVER
+    drawSectionHeader(20 + colWidth, row1Y, colWidth, 'RECEIVER DETAILS');
+    drawSectionBody(20 + colWidth, row1Y + 15, colWidth, row1Height);
 
-        const addr = shipment.deliveryDetails.address;
-        doc.text(`${addr.street || ''}`, 315, contentY + 50);
-        doc.text(`${addr.suburb || ''}, ${addr.city || ''}`, 315, contentY + 62);
-        doc.text(`${addr.province || ''}, ${addr.postalCode || ''}`, 315, contentY + 74);
-    } else {
-        doc.text(shipment.receiverName || 'N/A', 315, contentY);
-        doc.text(shipment.receiverPhone || '', 315, contentY + 12);
+    const receiver = shipment.deliveryDetails || { receiverName: shipment.receiverName, mobile: shipment.receiverPhone, address: { city: shipment.end } };
+    textY = row1Y + 20;
+    const rX = 20 + colWidth + 5;
+
+    doc.font('Helvetica-Bold').text(receiver.receiverName || '', rX, textY, { align: 'center', width: colWidth - 10 });
+    doc.font('Helvetica').text(receiver.company || '', rX, textY + 10, { align: 'center', width: colWidth - 10 });
+    doc.text(receiver.mobile || '', rX, textY + 20, { align: 'center', width: colWidth - 10 });
+
+    if (receiver.address) {
+        doc.fillColor('blue').text(receiver.email || '', rX, textY + 30, { align: 'center', width: colWidth - 10 }).fillColor('black');
+        doc.text(`${receiver.address.street || ''}`, rX, textY + 40, { align: 'center', width: colWidth - 10 });
+        doc.text(`${receiver.address.city || ''}, ${receiver.address.province || ''}`, rX, textY + 50, { align: 'center', width: colWidth - 10 });
+        doc.text(receiver.address.postalCode || '', rX, textY + 60, { align: 'center', width: colWidth - 10 });
     }
 
-    // ================= SHIPMENT DETAILS ROW ================= [Y ~ 250]
-    const detailsY = 250;
-    const detailsHeight = 100;
+    // COL 3: SERVICE
+    drawSectionHeader(20 + colWidth * 2, row1Y, colWidth, 'SERVICE INFO');
+    drawSectionBody(20 + colWidth * 2, row1Y + 15, colWidth, row1Height);
 
-    // Service & Parcel Info
-    contentY = drawBox(doc, 30, detailsY, 170, detailsHeight, 'Service Info');
+    const sX = 20 + colWidth * 2 + 5;
+    textY = row1Y + 20;
+    const parcel = shipment.parcelDetails || { serviceType: 'Standard', parcelType: shipment.packageType, dimensions: { weight: shipment.parcelWeight } };
 
-    if (shipment.parcelDetails) {
-        doc.text('Service:', 40, contentY);
-        doc.font('Helvetica-Bold').text(shipment.parcelDetails.serviceType.toUpperCase(), 90, contentY);
-
-        doc.font('Helvetica').text('Type:', 40, contentY + 15);
-        doc.text(shipment.parcelDetails.parcelType, 90, contentY + 15);
-
-        if (shipment.parcelDetails.dimensions) {
-            doc.text('Weight:', 40, contentY + 30);
-            doc.text(`${shipment.parcelDetails.dimensions.weight} kg`, 90, contentY + 30);
-
-            doc.text('Dims:', 40, contentY + 45);
-            const { length, width, height } = shipment.parcelDetails.dimensions;
-            doc.text(`${length}x${width}x${height} cm`, 90, contentY + 45);
-        }
-    } else {
-        doc.text('Type:', 40, contentY);
-        doc.text(shipment.packageType, 90, contentY);
-        doc.text('Weight:', 40, contentY + 15);
-        doc.text(shipment.parcelWeight + ' kg', 90, contentY + 15);
+    const drawLabelVal = (lbl, val, y) => {
+        doc.font('Helvetica-Bold').text(lbl, sX, y, { width: 40 });
+        doc.font('Helvetica').text(val, sX + 45, y);
     }
+    drawLabelVal('Service:', (parcel.serviceType || 'ECONOMY').toUpperCase(), textY);
+    drawLabelVal('Type:', (parcel.parcelType || 'Parcel').toUpperCase(), textY + 12);
+    drawLabelVal('Weight:', `${parcel.dimensions?.weight || shipment.parcelWeight} kg`, textY + 24);
+    if (parcel.dimensions?.length) drawLabelVal('Dims:', `${parcel.dimensions.length}x${parcel.dimensions.width}x${parcel.dimensions.height}`, textY + 36);
 
-    // Instructions Box
-    contentY = drawBox(doc, 210, detailsY, 170, detailsHeight, 'Instructions');
-    if (shipment.parcelDetails && shipment.parcelDetails.specialInstructions) {
-        doc.text(shipment.parcelDetails.specialInstructions, 220, contentY, { width: 150, height: 70 });
-    } else {
-        doc.text('None', 220, contentY);
-    }
 
-    // Payment Box
-    contentY = drawBox(doc, 390, detailsY, 175, detailsHeight, 'Payment Info');
-    if (shipment.payment) {
-        doc.text('Method:', 400, contentY);
-        doc.font('Helvetica-Bold').text(shipment.payment.method.toUpperCase(), 460, contentY);
+    // ================= ROW 2 [Y: ~180 - 220] =================
+    const row2Y = row1Y + 15 + row1Height + 5;
+    const row2Height = 40;
 
-        doc.font('Helvetica').text('Status:', 400, contentY + 15);
-        doc.text(shipment.payment.status.toUpperCase(), 460, contentY + 15);
-    } else {
-        // Fallback or legacy handling - empty for now to hide cost
-    }
+    // COL 1: INSTRUCTIONS
+    drawSectionHeader(20, row2Y, colWidth, 'INSTRUCTIONS');
+    drawSectionBody(20, row2Y + 15, colWidth, row2Height);
+    doc.font('Helvetica-Bold').fontSize(7).text(parcel.specialInstructions || 'None', 25, row2Y + 20, { width: colWidth - 10 });
 
-    // ================= SIGNATURES ================= [Y ~ 550]
-    const sigY = 550;
-    const tableWidth = 535; // Full width (595 - 30 - 30)
-    const colWidth = tableWidth / 2;
-    const headerHeight = 20;
-    const nameRowHeight = 25;
-    const sigAreaHeight = 80;
-    const totalHeight = headerHeight + nameRowHeight + sigAreaHeight;
+    // COL 2: PAYMENT
+    drawSectionHeader(20 + colWidth, row2Y, colWidth - 40, 'PAYMENT INFO');
+    drawSectionBody(20 + colWidth, row2Y + 15, colWidth - 40, row2Height);
 
-    // Draw Outer Box
-    doc.rect(30, sigY, tableWidth, totalHeight).stroke();
+    const pay = shipment.payment || { method: 'COD', amount: shipment.cost, status: 'Pending' };
+    doc.font('Helvetica-Bold').text('Method:', 20 + colWidth + 5, row2Y + 20);
+    doc.text((pay.method || 'Account').toUpperCase(), 20 + colWidth + 45, row2Y + 20);
 
-    // Vertical Divider (Middle)
-    doc.moveTo(30 + colWidth, sigY).lineTo(30 + colWidth, sigY + totalHeight).stroke();
+    doc.text('Status:', 20 + colWidth + 5, row2Y + 30);
+    doc.text((pay.status || 'Unknown').toUpperCase(), 20 + colWidth + 45, row2Y + 30);
 
-    // Horizontal Line 1 (Below Header)
-    doc.moveTo(30, sigY + headerHeight).lineTo(30 + tableWidth, sigY + headerHeight).stroke();
+    // COL 3: REF
+    const col3X = 20 + colWidth + (colWidth - 40);
+    const col3W = colWidth + 40;
+    drawSectionHeader(col3X, row2Y, col3W, 'THIRD PARTY / ECOM REF');
+    drawSectionBody(col3X, row2Y + 15, col3W, row2Height);
+    doc.font('Helvetica-Bold').text(`Ref: ${shipment.shipmentId}`, col3X + 5, row2Y + 20);
 
-    // Horizontal Line 2 (Below Name)
-    doc.moveTo(30, sigY + headerHeight + nameRowHeight).lineTo(30 + tableWidth, sigY + headerHeight + nameRowHeight).stroke();
 
-    // TEXT CONTENT
+    // ================= SPACE GAP =================
+    const gapAfterRow2 = 25;
 
-    // Headers
-    doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
-    doc.text('SENDER SIGNATURE', 35, sigY + 6);
-    doc.text('RECEIVER SIGNATURE', 30 + colWidth + 5, sigY + 6);
 
-    // Name Labels & Lines
-    doc.fontSize(10).font('Helvetica');
-    doc.text('NAME:', 35, sigY + headerHeight + 8);
-    doc.text('NAME:', 30 + colWidth + 5, sigY + headerHeight + 8);
+    // ================= BIG BOX [Y: ~260 - 355] =================
+    const bottomY = row2Y + 15 + row2Height + gapAfterRow2;
+    const bottomHeight = 90;
 
-    // Name Underlines (Optional, but looks good with label)
-    // doc.moveTo(35 + 40, sigY + headerHeight + 18).lineTo(35 + colWidth - 10, sigY + headerHeight + 18).stroke(); 
-    // doc.moveTo(30 + colWidth + 5 + 40, sigY + headerHeight + 18).lineTo(30 + colWidth + colWidth - 10, sigY + headerHeight + 18).stroke();
+    // Left Box (Blank)
+    doc.rect(20, bottomY, colWidth + 40, bottomHeight).stroke();
 
-    // Footer
-    doc.fontSize(7).text('ShipDay Courier Services | Terms & Conditions Apply', 30, 750, { align: 'center', color: '#888888' });
+    // Right Box (Sort Code)
+    const bigBoxX = 20 + colWidth + 40;
+    const bigBoxW = (colWidth * 2) - 40;
+
+    doc.rect(bigBoxX, bottomY, bigBoxW, bottomHeight).fillColor('#ffffff').fill();
+    doc.rect(bigBoxX, bottomY, bigBoxW, bottomHeight).strokeColor('#000000').stroke();
+
+    // Text Content
+    const recName = (receiver.company || receiver.receiverName || 'UNK').substring(0, 3);
+    const idSuffix = shipment.shipmentId.slice(-4);
+    const sortCode = `${recName}${idSuffix}`;
+
+    // Large ID - Reduced to 50
+    doc.fillColor('#000000').font('Helvetica').fontSize(50)
+        .text(sortCode, bigBoxX, bottomY + 15, { width: bigBoxW, align: 'center' });
+
+    doc.fontSize(40).text('6', bigBoxX, bottomY + 60, { width: bigBoxW, align: 'center' });
+
+
+    // ================= FOOTER - CENTERED STACK [Y: ~385] =================
+    const footerY = bottomY + bottomHeight + 10;
+
+    doc.fontSize(6).font('Helvetica');
+
+    // Stacked Vertically, Centered
+    // Using full page width (595) for perfect centering
+
+    doc.text('SENDER SIGNATURE', 0, footerY, { align: 'center', width: 595 });
+    doc.text('RECEIVER SIGNATURE', 0, footerY + 12, { align: 'center', width: 595 });
+
+    // Names side-by-side below
+    doc.text('NAME:', 0, footerY + 24, { align: 'center', width: 595 });
 
     doc.end();
 };
@@ -186,7 +204,7 @@ const generatePOD = (shipment, res) => {
     doc.moveDown();
 
     // Basic Info
-    doc.fontSize(12).text(`Date Shipped: ${new Date(shipment.createdAt).toLocaleDateString()}`);
+    doc.fontSize(12).text(`Date Shipped: ${shipment.createdAt ? new Date(shipment.createdAt).toLocaleDateString() : 'N/A'}`);
     doc.text(`From: ${shipment.senderName || (shipment.senderDetails ? shipment.senderDetails.fullName : '')}`);
     doc.text(`To: ${shipment.receiverName || (shipment.deliveryDetails ? shipment.deliveryDetails.receiverName : '')}`);
     doc.moveDown();

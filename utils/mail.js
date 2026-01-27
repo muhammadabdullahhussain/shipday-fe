@@ -1,12 +1,15 @@
 // utils/mail.js
 const nodemailer = require("nodemailer");
 
-// Nodemailer transporter setup
+/**
+ * Mail utility using Gmail service (Old System)
+ * To use another provider, change the 'service' or use 'host'/'port'.
+ */
 const transporter = nodemailer.createTransport({
-  service: "Gmail",
+  service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.EMAIL_USER || 'codeforge0@gmail.com',
+    pass: process.env.EMAIL_PASS, // User must provide Gmail App Password
   },
 });
 
@@ -14,18 +17,21 @@ const transporter = nodemailer.createTransport({
 const sendMail = async (to, subject, text, html = null) => {
   try {
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: process.env.EMAIL_USER || 'codeforge0@gmail.com',
       to,
       subject,
       text,
       ...(html && { html }),
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log(` Email sent to ${to}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent to ${to}: ${info.messageId}`);
+    return info;
   } catch (error) {
     console.error("❌ Email sending failed:", error);
-    throw new Error("Email could not be sent");
+    // Log details for debugging "kisi bhe haalat me"
+    console.log("Details:", { to, subject, user: process.env.EMAIL_USER });
+    throw new Error("Email could not be sent. Please check your EMAIL_PASS.");
   }
 };
 
