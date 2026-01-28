@@ -285,20 +285,20 @@ const getDriverNotifications = async (req, res) => {
   const { driverId } = req.params;
 
   try {
-    console.log('Looking for driver with ID:', driverId);
+    
     const driver = await Driver.findOne({ driverId });
-    console.log('Driver found:', driver ? 'Yes' : 'No');
+    
 
     if (!driver) {
       return res.status(404).json({ message: 'Driver not found' });
     }
 
-    console.log('Driver ObjectId:', driver._id);
-    console.log('Driver ObjectId as string:', driver._id.toString());
+    
+    
 
     // Get all notifications for debugging
     const allNotifications = await Notification.find({}).sort({ createdAt: -1 });
-    console.log('Total notifications in DB:', allNotifications.length);
+    
     console.log('All notification userIds:', allNotifications.map(n => ({
       userId: n.userId?.toString(),
       type: n.type,
@@ -312,7 +312,7 @@ const getDriverNotifications = async (req, res) => {
       type: 'shipment_assigned'
     }).sort({ createdAt: -1 });
 
-    console.log('Notifications found for driver:', notifications.length);
+    
 
     // If still no notifications, check for shipment-related notifications by message content
     if (notifications.length === 0) {
@@ -321,10 +321,10 @@ const getDriverNotifications = async (req, res) => {
         message: { $regex: 'SHP900155', $options: 'i' }
       }).sort({ createdAt: -1 });
 
-      console.log('Shipment notifications found by message search:', shipmentNotifications.length);
+      
       if (shipmentNotifications.length > 0) {
-        console.log('Found shipment notification with userId:', shipmentNotifications[0].userId?.toString());
-        console.log('Expected userId:', driver._id.toString());
+        
+        
       }
     }
 
@@ -557,7 +557,7 @@ const resetPassword = async (req, res) => {
 const cleanupLoginNotifications = async (req, res) => {
   try {
     const result = await Notification.deleteMany({ type: 'login' });
-    console.log('Deleted login notifications:', result.deletedCount);
+    
 
     res.status(200).json({
       message: `Successfully deleted ${result.deletedCount} login notifications`
@@ -585,9 +585,9 @@ const createTestNotification = async (req, res) => {
     });
 
     await notification.save();
-    console.log('Test notification created for driver:', driver.driverId);
-    console.log('Notification userId:', notification.userId);
-    console.log('Driver ObjectId:', driver._id);
+    
+    
+    
 
     res.status(200).json({
       message: 'Test notification created successfully',

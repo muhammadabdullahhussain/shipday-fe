@@ -80,11 +80,24 @@ const shipmentSchema = new mongoose.Schema({
 
   // Payment Details
   payment: {
-    method: { type: String, enum: ['ewallet', 'gateway', 'cod', 'payfast'], default: 'gateway' },
+    method: { type: String, enum: ['ewallet', 'gateway', 'cod', 'payfast', 'fulfillment'], default: 'gateway' },
     status: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending' },
     amount: { type: Number },
     transactionId: String
   },
+
+  // Fulfillment & Marketplace Details
+  orderNumber: String,
+  marketplaceName: String,
+  numberOfBoxes: { type: Number, default: 1 },
+  parcels: [{
+    length: Number,
+    width: Number,
+    height: Number,
+    weight: Number
+  }],
+  bookedBy: String,
+  isFulfillment: { type: Boolean, default: false },
 
   // Legacy/Compatibility fields (populated from above by controller)
   // These are NOT required because controller auto-populates them

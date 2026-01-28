@@ -9,7 +9,7 @@ exports.getPricingConfig = async (req, res) => {
         if (!pricing) {
             pricing = new Pricing();
             await pricing.save();
-            console.log('Initialized default pricing configuration');
+            
         }
 
         res.status(200).json(pricing);

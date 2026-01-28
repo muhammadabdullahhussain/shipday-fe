@@ -17,8 +17,8 @@ exports.generateShipments = async (req, res) => {
     const orders = await Order.find();
     const routes = await Tracking.find().sort({ createdAt: -1 }); // Sort: most recent first
 
-    console.log(`📦 Total Orders: ${orders.length}`);
-    console.log(`🛣️  Total Routes: ${routes.length}`);
+
+
 
     const assignedOrderIds = new Set(); // Track assigned orders
     const shipments = [];
@@ -51,7 +51,7 @@ exports.generateShipments = async (req, res) => {
         continue;
       }
 
-      console.log(`🔍 Processing Route ${routeId} → ${end}`);
+
 
       // Filter orders within 50 km of this route's end location
       const matchingOrders = orders.filter(order => {
@@ -75,7 +75,7 @@ exports.generateShipments = async (req, res) => {
         return distance <= 50;
       });
 
-      console.log(` Route ${routeId} matched ${matchingOrders.length} unassigned orders.`);
+
 
       if (matchingOrders.length === 0) continue;
 
@@ -93,9 +93,9 @@ exports.generateShipments = async (req, res) => {
 
         if (newOrderIds.length > 0) {
           shipment.orders.push(...newOrderIds);
-          console.log(`✏️ Updated shipment ${shipment.shipmentId} with ${newOrderIds.length} new orders.`);
+
         } else {
-          console.log(`ℹ️ No new orders to add to shipment ${shipment.shipmentId}.`);
+
         }
 
         shipment.trackingNumber = trackingId || shipment.trackingNumber;
@@ -115,7 +115,7 @@ exports.generateShipments = async (req, res) => {
         });
 
         await shipment.save();
-        console.log(` Created new shipment ${shipment.shipmentId}`);
+
       }
 
       shipments.push(shipment);
@@ -231,7 +231,7 @@ exports.syncShipmentStatuses = async (req, res) => {
       if (allDelivered && shipment.status !== "Delivered") {
         shipment.status = "Delivered";
         await shipment.save();
-        console.log(`Synced status for shipment ${shipment.shipmentId}`);
+
       }
     }
 
@@ -320,7 +320,11 @@ exports.trackShipment = async (req, res) => {
   try {
     const { trackingNumber } = req.params;
     const shipment = await Shipment.findOne({
-      $or: [{ trackingNumber: trackingNumber }, { shipmentId: trackingNumber }]
+      $or: [
+        { trackingNumber: trackingNumber },
+        { shipmentId: trackingNumber },
+        { orderNumber: trackingNumber }
+      ]
     })
       .populate('driver', 'username mobile vehicleType')
       .populate('orders');

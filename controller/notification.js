@@ -15,15 +15,15 @@ exports.createNotification = async (req, res) => {
 
     // Send email if type is 'email'
     if (type === 'email') {
-      console.log('Email notification requested.');
+      
       const user = await User.findById(userId);
       if (!user || !user.email) {
-        console.log('User or user email not found for email notification.');
+        
 
         return res.status(400).json({ success: false, message: 'User email not found' });
       }
 
-      console.log('Sending email notification...');
+      
       await sendMail(user.email, title, message);
     }
 

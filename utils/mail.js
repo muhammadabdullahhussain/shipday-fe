@@ -8,7 +8,7 @@ const nodemailer = require("nodemailer");
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER || 'codeforge0@gmail.com',
+    user: process.env.EMAIL_USER || 'support@shipday.co.za',
     pass: process.env.EMAIL_PASS, // User must provide Gmail App Password
   },
 });
@@ -17,7 +17,7 @@ const transporter = nodemailer.createTransport({
 const sendMail = async (to, subject, text, html = null) => {
   try {
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'codeforge0@gmail.com',
+      from: process.env.EMAIL_USER || 'support@shipday.co.za',
       to,
       subject,
       text,

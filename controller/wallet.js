@@ -21,7 +21,7 @@ exports.getWallet = async (req, res) => {
       }, 0);
 
       if (Math.abs(wallet.balance - calculatedBalance) > 0.01) {
-        console.log(`🔧 Healing Wallet Balance for user ${req.params.userId}: ${wallet.balance} -> ${calculatedBalance}`);
+        
         wallet.balance = calculatedBalance;
         await wallet.save();
       }
@@ -91,7 +91,7 @@ exports.addTransaction = async (req, res) => {
         orderId: description || 'Wallet Adjustment',
         date: new Date()
       });
-      console.log(`Global transaction record created for wallet ${type}`);
+      
     } catch (glErr) {
       console.error("Failed to sync global transaction:", glErr);
     }

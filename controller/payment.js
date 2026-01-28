@@ -2,7 +2,12 @@
 const Notification = require('../models/Notification');
 
 const Stripe = require('stripe');
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY); // Ensure this is defined in your .env
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const stripe = stripeSecretKey ? Stripe(stripeSecretKey) : null;
+
+if (!stripe) {
+  console.warn('⚠️ STRIPE_SECRET_KEY is missing. Stripe payments will not work.');
+}
 const Wallet = require('../models/Wallet');
 const Transaction = require('../models/Transaction');
 const Shipment = require('../models/Shipment');
@@ -135,7 +140,7 @@ exports.initiateWalletTopup = async (req, res) => {
 exports.handlePayFastNotify = async (req, res) => {
   try {
     const pfData = req.body;
-    console.log("🔔 PayFast Notification Received:", pfData);
+
 
     const checkSignature = pfValidSignature(pfData, process.env.PAYFAST_PASSPHRASE);
     if (pfData.signature !== checkSignature) {
@@ -227,12 +232,12 @@ exports.confirmSandboxPayment = async (req, res) => {
       return res.status(403).json({ message: 'Manual confirmation only allowed in sandbox mode' });
     }
 
-    console.log(`🛠️ Sandbox Manual Sync: ${mPaymentId} (R${amount})`);
+
 
     // Check if already processed to prevent double-charging in Sandbox
     const existingTransaction = await Transaction.findOne({ orderId: mPaymentId, status: 'Completed' });
     if (existingTransaction) {
-      console.log(`ℹ️ Sandbox: Payment ${mPaymentId} already synchronized.`);
+
       return res.status(200).json({ message: 'Sandbox payment already synchronized' });
     }
 
@@ -386,17 +391,18 @@ exports.payWithWallet = async (req, res) => {
     });
     await newTransaction.save();
 
-    await Notification.create({
+    // Push notification/record - non-blocking
+    Notification.create({
       userId: userId,
       title: 'Payment Successful',
       message: `Your payment of R${amount} for Shipment ${shipment.shipmentId} has been deducted from your wallet.`,
       type: 'transaction'
-    });
+    }).catch(e => console.error("Async Notify Error:", e));
 
     res.status(200).json({
       message: 'Payment successful',
       transactionId: shipment.payment.transactionId,
-      newBalance: wallet.balance
+      newBalance: updatedWallet.balance
     });
 
   } catch (error) {

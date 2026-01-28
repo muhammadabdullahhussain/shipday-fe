@@ -25,7 +25,7 @@ exports.createTracking = async (req, res) => {
 
     //  Get coordinates for end address using LocationIQ
     const receiverAddress = req.body.end;
-    console.log("Received address (end):", receiverAddress);
+    
 
     let destinationCoordinates = { lat: null, lon: null };
     if (receiverAddress) {

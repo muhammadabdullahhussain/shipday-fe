@@ -73,11 +73,11 @@ exports.addNewStaff = async (req, res) => {
     });
 
     await newStaff.save();
-    console.log(`✅ Staff created: ${newStaffId}`);
+    
 
     // If role is Driver, automatically create a Driver account
     if (role === 'Driver') {
-      console.log(`🚚 Role is Driver, attempting to create Driver account for ${email}`);
+      
       const existingDriver = await Driver.findOne({ email });
       if (!existingDriver) {
         const driverId = await generateDriverId();
@@ -95,9 +95,9 @@ exports.addNewStaff = async (req, res) => {
           status: 'approved' // Auto-approve admin created drivers
         });
         await newDriver.save();
-        console.log(`✅ Auto-created Driver account for staff: ${fullName}`);
+        
       } else {
-        console.log(`ℹ️ Driver account already exists for ${email}`);
+        
       }
     }
 

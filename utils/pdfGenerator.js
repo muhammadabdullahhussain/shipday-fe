@@ -141,9 +141,19 @@ const generateWaybill = (shipment, res) => {
     // COL 3: REF
     const col3X = 20 + colWidth + (colWidth - 40);
     const col3W = colWidth + 40;
-    drawSectionHeader(col3X, row2Y, col3W, 'THIRD PARTY / ECOM REF');
+    drawSectionHeader(col3X, row2Y, col3W, 'MARKETPLACE / REF');
     drawSectionBody(col3X, row2Y + 15, col3W, row2Height);
-    doc.font('Helvetica-Bold').text(`Ref: ${shipment.shipmentId}`, col3X + 5, row2Y + 20);
+
+    let refY = row2Y + 20;
+    if (shipment.marketplaceName) {
+        doc.font('Helvetica-Bold').fontSize(9).text(shipment.marketplaceName.toUpperCase(), col3X + 5, refY);
+        refY += 12;
+    }
+
+    doc.font('Helvetica-Bold').fontSize(8).text(`Ref: ${shipment.orderNumber || shipment.shipmentId}`, col3X + 5, refY);
+    if (shipment.numberOfBoxes && shipment.numberOfBoxes > 1) {
+        doc.font('Helvetica').fontSize(7).text(`Boxes: ${shipment.numberOfBoxes}`, col3X + 5, refY + 10);
+    }
 
 
     // ================= SPACE GAP =================

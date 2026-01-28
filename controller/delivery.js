@@ -159,10 +159,10 @@ exports.autoCreateDeliveries = async () => {
       });
 
       await newDelivery.save();
-      console.log(`✔️ Created delivery for shipment ${shipment.shipmentId}`);
+      
     }
 
-    console.log(" Auto delivery creation complete.");
+    
   } catch (err) {
     console.error("❌ Error in autoCreateDeliveries:", err.message);
   }

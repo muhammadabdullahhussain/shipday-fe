@@ -33,9 +33,9 @@ const getPendingDrivers = async (req, res) => {
 // Get all accepted drivers
 const getAcceptedDrivers = async (req, res) => {
   try {
-    console.log('Fetching approved drivers...');
+
     const drivers = await Driver.find({ status: 'approved' }).select('-password');
-    console.log('Found approved drivers:', drivers.length);
+
     res.status(200).json({ drivers });
   } catch (err) {
     console.error('Error fetching approved drivers:', err);
@@ -56,7 +56,7 @@ const getAllDrivers = async (req, res) => {
 // Approve/Reject driver
 const updateDriverStatus = async (req, res) => {
   const { driverId, status } = req.body;
-  console.log('Received:', { driverId, status });
+
 
   if (!driverId || !['approved', 'rejected'].includes(status)) {
     return res.status(400).json({ message: 'Valid driverId and status (approved/rejected) required' });
@@ -109,16 +109,18 @@ const updateDriverStatus = async (req, res) => {
 // Create new shipment
 const createShipment = async (req, res) => {
   try {
-    console.log("DEBUG: createShipment called with:", JSON.stringify(req.body, null, 2));
+
 
     const {
       senderDetails, collectionDetails, deliveryDetails, parcelDetails, payment, // New Schema
+      orderNumber, marketplaceName, numberOfBoxes, parcels, bookedBy, isFulfillment, // Fulfillment
       senderName, senderPhone, receiverName, receiverPhone, start, end, parcelWeight, packageType, cost, eta, notes // Legacy
     } = req.body;
 
     const generateShipmentId = require('../utils/generateShipmentId');
     const { generatePaymentData } = require('../utils/payfast');
     const shipmentId = await generateShipmentId();
+    const crypto = require('crypto');
 
     let shipmentData = {
       shipmentId,
@@ -142,6 +144,12 @@ const createShipment = async (req, res) => {
         collectionDetails,
         deliveryDetails,
         parcelDetails,
+        orderNumber,
+        marketplaceName,
+        numberOfBoxes,
+        parcels,
+        bookedBy,
+        isFulfillment: !!isFulfillment,
         payment: {
           ...payment,
           amount: payment?.amount || cost || 0,
@@ -165,7 +173,7 @@ const createShipment = async (req, res) => {
 
     } else {
       // Legacy flow - Fallback
-      console.log("DEBUG: Falling back to legacy flow");
+
 
       const etaDate = eta ? new Date(eta) : new Date();
       etaDate.setDate(etaDate.getDate() + 3); // Default 3 days
@@ -215,7 +223,7 @@ const createShipment = async (req, res) => {
       };
     }
 
-    console.log("DEBUG: Creating shipment with data:", JSON.stringify(shipmentData, null, 2));
+
 
     const shipment = new Shipment(shipmentData);
     await shipment.save();
@@ -223,7 +231,8 @@ const createShipment = async (req, res) => {
     // Create Transaction Record
     try {
       const Transaction = require('../models/Transaction');
-      const { v4: uuidv4 } = require('uuid');
+
+      const uuidSmall = crypto.randomBytes(4).toString('hex').toUpperCase();
 
       const userId = (req.user && req.user._id) ? req.user._id : null;
       // Identify customer name - use User's name if logged in, otherwise Sender Name
@@ -231,25 +240,38 @@ const createShipment = async (req, res) => {
         ? req.user.fullName
         : (shipmentData.senderDetails?.fullName || shipmentData.senderName || 'Guest');
 
+      // Map methods to match Transaction enum
+      const methodMap = {
+        'cod': 'COD',
+        'payfast': 'PayFast',
+        'ewallet': 'Wallet',
+        'gateway': 'Card',
+        'wallet': 'Wallet',
+        'fulfillment': 'Card' // Recorded as a Sale/Card type for reporting
+      };
+
+      const rawMethod = shipmentData.payment?.method || 'cod';
+      const normalizedMethod = methodMap[rawMethod.toLowerCase()] || 'COD';
+
       const txnData = {
-        txnId: "TXN-" + uuidv4().slice(0, 8).toUpperCase(),
+        txnId: "TXN-" + uuidSmall,
         customer: customerName,
         userId: userId,
-        type: 'Debit', // Shipment creation is a debit (cost) usually, or just a record? Defaults to 'Debit' in context of "Cost"
+        type: 'Debit',
         amount: shipmentData.payment?.amount || shipmentData.cost || 0,
-        method: shipmentData.payment?.method || 'COD',
+        method: normalizedMethod,
         status: (shipmentData.payment?.status === 'paid' || shipmentData.payment?.status === 'completed') ? 'Completed' : 'Pending',
         orderId: shipment.shipmentId
       };
 
       await new Transaction(txnData).save();
-      console.log(`Transaction created for shipment ${shipment.shipmentId}`);
+
     } catch (txnError) {
       console.error("Failed to create transaction record:", txnError.message);
     }
 
-    // Trigger automatic email notification for new shipment
-    await sendShipmentStatusEmail(shipment, 'Pending Collect');
+    // Trigger automatic email notification for new shipment - DO NOT await to prevent hanging
+    sendShipmentStatusEmail(shipment, 'Pending Collect').catch(e => console.error("Async Email Error:", e));
 
     // Generate PayFast data if payment method is gateway or wallet
     let paymentData = null;
@@ -308,12 +330,12 @@ const assignShipmentToDriver = async (req, res) => {
       return res.status(404).json({ message: 'Shipment not found (must be Pending or Shipping)' });
     }
 
-    console.log('Looking for driver with ID:', driverId);
+
     const driver = await Driver.findOne({
       driverId,
       status: 'approved'
     });
-    console.log('Driver found:', driver);
+
 
     if (!driver) {
       return res.status(404).json({ message: 'Approved driver not found' });
@@ -330,8 +352,8 @@ const assignShipmentToDriver = async (req, res) => {
     ).populate('driver', 'username driverId');
 
     // Create notification for driver
-    console.log('Creating notification for driver ObjectId:', driver._id);
-    console.log('Driver details:', { driverId: driver.driverId, username: driver.username });
+
+
 
     const notification = new Notification({
       userId: driver._id,
@@ -341,8 +363,8 @@ const assignShipmentToDriver = async (req, res) => {
     });
 
     const savedNotification = await notification.save();
-    console.log('Notification saved successfully:', savedNotification._id);
-    console.log('Notification userId:', savedNotification.userId);
+
+
 
     // Send push notification if driver has FCM token
     if (driver.fcmToken) {
@@ -358,12 +380,12 @@ const assignShipmentToDriver = async (req, res) => {
             end: shipment.end
           }
         );
-        console.log(`Push notification sent to driver ${driver.username}`);
+
       } catch (pushError) {
         console.error('Failed to send push notification:', pushError.message);
       }
     } else {
-      console.log(`No FCM token for driver ${driver.username}`);
+
     }
 
     // Emit socket notification
@@ -568,7 +590,7 @@ const createCustomer = async (req, res) => {
   const User = require('../models/User');
   const bcrypt = require('bcryptjs');
 
-  console.log("DEBUG: createCustomer called with:", req.body);
+
 
   if (!fullName || !email || !password) {
     return res.status(400).json({ message: 'Full Name, Email, and Password are required' });

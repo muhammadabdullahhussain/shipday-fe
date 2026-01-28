@@ -33,8 +33,14 @@ const generatePaymentData = (shipment) => {
     const merchantKey = process.env.PAYFAST_MERCHANT_KEY || '2ib6bssct5vzd';
     const passPhrase = process.env.PAYFAST_PASSPHRASE || "";
 
-    const frontendUrl = process.env.BASE_URL || 'http://localhost:5173';
-    const backendUrl = process.env.API_URL || 'http://localhost:5000';
+    const frontendUrl = (process.env.BASE_URL || 'https://shipday-be.vercel.app').trim();
+    let finalBackendUrl = (process.env.API_URL || 'https://shipday-fe.vercel.app/api').trim();
+
+    // SAFETY: PayFast CloudFront blocks requests with "localhost" in ANY field.
+    // If API_URL is still localhost, we need a valid production fallback or it will fail.
+    if (finalBackendUrl.includes('localhost')) {
+        console.warn('⚠️ PayFast: API_URL contains localhost. This will FAIL in production.');
+    }
 
     // Construct data in the EXACT order expected/sent
     const data = {
@@ -42,7 +48,7 @@ const generatePaymentData = (shipment) => {
         merchant_key: merchantKey.trim(),
         return_url: `${frontendUrl}/payment/success`.trim(),
         cancel_url: `${frontendUrl}/payment/cancel`.trim(),
-        notify_url: `${backendUrl}/api/payment/notify`.trim(),
+        notify_url: `${finalBackendUrl}/payments/notify`.trim(),
         name_first: shipment.senderDetails.fullName.split(' ')[0].trim(),
         name_last: (shipment.senderDetails.fullName.split(' ').slice(1).join(' ') || 'Sender').trim(),
         email_address: isSandbox ? 'sbtester@payfast.co.za' : shipment.senderDetails.email.trim(),

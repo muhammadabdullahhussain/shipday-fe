@@ -67,7 +67,7 @@ exports.submitContactForm = async (req, res) => {
             `;
 
             await sendMail(supportEmail, subjectLine, textContent, htmlContent);
-            console.log('Contact form email sent successfully');
+            
         } catch (emailError) {
             console.error("Failed to send contact email:", emailError);
         }
