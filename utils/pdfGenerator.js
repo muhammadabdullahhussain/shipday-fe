@@ -8,7 +8,7 @@ const drawBox = (doc, x, y, width, height, title) => {
     doc.rect(x, y, width, height).strokeColor('#333333').stroke();
 
     // Title
-    doc.fillColor('#000000').fontSize(9).font('Helvetica-Bold').text(title.toUpperCase(), x + 5, y + 5);
+    doc.fillColor('#000000').fontSize(9).font('Helvetica-Bold').text((title || '').toUpperCase(), x + 5, y + 5);
 
     // Reset
     doc.fillColor('#000000').font('Helvetica').fontSize(9);
@@ -25,7 +25,7 @@ const generateWaybill = (shipment, res) => {
     const drawSectionHeader = (x, y, w, title) => {
         doc.fillColor('#d1d5db').rect(x, y, w, 15).fill();
         doc.rect(x, y, w, 15).strokeColor('#000000').lineWidth(0.5).stroke();
-        doc.fillColor('#000000').font('Helvetica-Bold').fontSize(8).text(title.toUpperCase(), x, y + 4, {
+        doc.fillColor('#000000').font('Helvetica-Bold').fontSize(8).text((title || '').toUpperCase(), x, y + 4, {
             width: w,
             align: 'center'
         });
@@ -49,7 +49,8 @@ const generateWaybill = (shipment, res) => {
     doc.font('Times-Roman').fontSize(32).text(shipment.shipmentId, 140, 15, { align: 'center', width: 320 });
 
     // Middle ID
-    const midId = shipment.shipmentId.slice(-3);
+    const sId = shipment.shipmentId || 'SD-UNKNOWN';
+    const midId = sId.slice(-3);
     doc.font('Helvetica-Bold').fontSize(26).text(midId, 140, 48, { align: 'center', width: 320 });
     doc.fontSize(8).text(shipment.shipmentId, 140, 74, { align: 'center', width: 320 });
 
@@ -146,7 +147,7 @@ const generateWaybill = (shipment, res) => {
 
     let refY = row2Y + 20;
     if (shipment.marketplaceName) {
-        doc.font('Helvetica-Bold').fontSize(9).text(shipment.marketplaceName.toUpperCase(), col3X + 5, refY);
+        doc.font('Helvetica-Bold').fontSize(9).text((shipment.marketplaceName || '').toUpperCase(), col3X + 5, refY);
         refY += 12;
     }
 
@@ -175,8 +176,9 @@ const generateWaybill = (shipment, res) => {
     doc.rect(bigBoxX, bottomY, bigBoxW, bottomHeight).strokeColor('#000000').stroke();
 
     // Text Content
-    const recName = (receiver.company || receiver.receiverName || 'UNK').substring(0, 3);
-    const idSuffix = shipment.shipmentId.slice(-4);
+    const recName = (receiver.company || receiver.receiverName || 'UNK').toString().substring(0, 3);
+    const idValue = (shipment.shipmentId || 'UNKNOWN');
+    const idSuffix = idValue.slice(-4);
     const sortCode = `${recName}${idSuffix}`;
 
     // Large ID - Reduced to 50
