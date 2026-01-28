@@ -17,6 +17,8 @@ router.get("/count", getShipmentCount);
 router.get('/metrics', getShipmentMetrics); //  new route
 router.get("/status-breakdown", getShipmentStatusBreakdown);
 router.get("/track/:trackingNumber", trackShipment);
+router.get("/:shipmentId/waybill", require('../controller/admin').downloadWaybill);
+router.get("/:shipmentId/pod", require('../controller/admin').downloadPOD);
 
 
 module.exports = router;
