@@ -30,8 +30,11 @@ const sendMail = async (to, subject, text, html = null) => {
   } catch (error) {
     console.error("❌ Email sending failed:", error);
     // Log details for debugging "kisi bhe haalat me"
-    console.log("Details:", { to, subject, user: process.env.EMAIL_USER });
-    throw new Error("Email could not be sent. Please check your EMAIL_PASS.");
+    console.error("Details:", { to, subject, user: process.env.EMAIL_USER, errorMsg: error.message, errorStack: error.stack });
+    if (error.response) {
+      console.error("SMTP Response:", error.response);
+    }
+    throw new Error(`Email could not be sent. Check logs. Error: ${error.message}`);
   }
 };
 
