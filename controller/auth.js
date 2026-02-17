@@ -403,7 +403,10 @@ const getAllCustomers = async (req, res) => {
         fullName: user.fullName,
         email: user.email,
         phone: user.phone,
-        role: user.role || 'Customer', // Add role for filtering
+        company: user.companyName || '',
+        status: user.status || 'Active',
+        location: user.location || {},
+        role: user.role || 'Customer',
         totalOrders: userOrders.length,
         walletBalance: userWallet ? userWallet.balance : 0
       };

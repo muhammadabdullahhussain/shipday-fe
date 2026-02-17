@@ -22,9 +22,12 @@ exports.addWarehouse = async (req, res) => {
     }
 
     // Get coordinates for location (not full address)
-    const coords = await getCoordinates(location);
+    let coords = await getCoordinates(location);
+
+    // If coords not found (e.g. dummy address), default to 0,0 instead of blocking
     if (!coords) {
-      return res.status(400).json({ message: "Unable to fetch coordinates" });
+      console.warn(`Could not fetch coordinates for location: ${location}`);
+      coords = { lat: 0, lon: 0 };
     }
 
     const newId = await generateWarehouseId();

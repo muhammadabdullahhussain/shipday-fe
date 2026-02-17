@@ -2,14 +2,16 @@
 const nodemailer = require("nodemailer");
 
 /**
- * Mail utility using Gmail service (Old System)
- * To use another provider, change the 'service' or use 'host'/'port'.
+ * Mail utility using ShipDay email service
+ * Uses noreply@shipday.co.za for verification/notification emails
  */
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.NOREPLY_SMTP_HOST || 'mail.shipday.co.za',
+  port: parseInt(process.env.NOREPLY_SMTP_PORT) || 465,
+  secure: process.env.NOREPLY_SMTP_SECURE === 'true' || true, // true for 465, false for other ports
   auth: {
-    user: process.env.EMAIL_USER || 'support@shipday.co.za',
-    pass: process.env.EMAIL_PASS, // User must provide Gmail App Password
+    user: process.env.NOREPLY_EMAIL || 'noreply@shipday.co.za',
+    pass: process.env.NOREPLY_EMAIL_PASS,
   },
 });
 
@@ -17,7 +19,7 @@ const transporter = nodemailer.createTransport({
 const sendMail = async (to, subject, text, html = null) => {
   try {
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'support@shipday.co.za',
+      from: `"ShipDay" <${process.env.NOREPLY_EMAIL || 'noreply@shipday.co.za'}>`,
       to,
       subject,
       text,
@@ -29,8 +31,16 @@ const sendMail = async (to, subject, text, html = null) => {
     return info;
   } catch (error) {
     console.error("❌ Email sending failed:", error);
-    // Log details for debugging "kisi bhe haalat me"
-    console.error("Details:", { to, subject, user: process.env.EMAIL_USER, errorMsg: error.message, errorStack: error.stack });
+    // Log details for debugging
+    console.error("Details:", {
+      to,
+      subject,
+      user: process.env.NOREPLY_EMAIL,
+      host: process.env.NOREPLY_SMTP_HOST,
+      port: process.env.NOREPLY_SMTP_PORT,
+      errorMsg: error.message,
+      errorStack: error.stack
+    });
     if (error.response) {
       console.error("SMTP Response:", error.response);
     }

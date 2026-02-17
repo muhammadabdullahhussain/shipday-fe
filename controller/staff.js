@@ -31,6 +31,8 @@ exports.addNewStaff = async (req, res) => {
       shift,
       email,
       baseLocation,
+      latitude,
+      longitude,
     } = req.body;
 
     // Check if staff already exists by email
@@ -70,14 +72,16 @@ exports.addNewStaff = async (req, res) => {
       shift,
       email,
       baseLocation,
+      latitude,
+      longitude,
     });
 
     await newStaff.save();
-    
+
 
     // If role is Driver, automatically create a Driver account
     if (role === 'Driver') {
-      
+
       const existingDriver = await Driver.findOne({ email });
       if (!existingDriver) {
         const driverId = await generateDriverId();
@@ -95,9 +99,9 @@ exports.addNewStaff = async (req, res) => {
           status: 'approved' // Auto-approve admin created drivers
         });
         await newDriver.save();
-        
+
       } else {
-        
+
       }
     }
 

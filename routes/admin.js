@@ -19,11 +19,15 @@ const {
   downloadWaybill,
   downloadPOD,
   createCustomer,
-  deleteDriver
+  deleteDriver,
+  updateCustomerStatus,
+  updateCustomerWallet
 } = require('../controller/admin');
 
 // Customer handling
 router.post('/customers/create', authMiddleware, verifyAdmin, createCustomer);
+router.patch('/customers/status', authMiddleware, verifySuperAdmin, updateCustomerStatus);
+router.patch('/customers/wallet', authMiddleware, verifySuperAdmin, updateCustomerWallet);
 
 // Driver routes
 router.get('/drivers/all', authMiddleware, verifyAdmin, getAllDrivers);

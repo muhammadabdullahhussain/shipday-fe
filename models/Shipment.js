@@ -117,19 +117,25 @@ const shipmentSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: [
-      'Pending Collect',
-      'Inhouse',
-      'Collected',
-      'Shipping',
-      'In-transit',
-      'Returning to Sender',
-      'Inter hub',
-      'Inter region',
-      'Out For delivery',
-      'Failed Delivery',
-      'Delivered'
+      'Order Created',
+      'Pending Collection',
+      'Driver Assigned',
+      'Picked Up',
+      'In Transit',
+      'Inter branch Transit',
+      'Delivered',
+      'Delivery Failed',
+      'Rescheduled',
+      'Return to Sender',
+      'Returning to hub',
+      'Delivery cancelled',
+      'At Warehouse',
+      'Parcel in Sorting Facility',
+      'Out for Delivery',
+      'On Hold',
+      'Awaiting Payment'
     ],
-    default: 'Pending Collect'
+    default: 'Order Created'
   },
   driver: {
     type: mongoose.Schema.Types.ObjectId,

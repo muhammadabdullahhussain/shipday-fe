@@ -14,8 +14,14 @@ const pricingSchema = new mongoose.Schema({
         eta: { type: String, default: '1-2 days' }
     },
     satchel: {
-        a4: { type: Number, required: true, default: 90 },
-        a3: { type: Number, required: true, default: 110 }
+        economy: {
+            a4: { type: Number, required: true, default: 90 },
+            a3: { type: Number, required: true, default: 110 }
+        },
+        express: {
+            a4: { type: Number, required: true, default: 110 },
+            a3: { type: Number, required: true, default: 130 }
+        }
     },
     updatedAt: { type: Date, default: Date.now }
 });

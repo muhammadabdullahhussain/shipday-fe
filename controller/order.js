@@ -23,10 +23,10 @@ const calculateCost = async (weight, dimensions, deliveryType, packageType) => {
 
     // Satchel Logic
     if (packageType && packageType.toLowerCase().includes('satchel')) {
-      if (packageType.toLowerCase().includes('a4')) return pricing.satchel.a4;
-      if (packageType.toLowerCase().includes('a3')) return pricing.satchel.a3;
-      // default satchel fallback?
-      return pricing.satchel.a4;
+      const satchelPricing = pricing.satchel[deliveryType] || pricing.satchel.economy;
+      if (packageType.toLowerCase().includes('a4')) return satchelPricing.a4;
+      if (packageType.toLowerCase().includes('a3')) return satchelPricing.a3;
+      return satchelPricing.a4;
     }
 
     let config = deliveryType === 'express' ? pricing.express : pricing.economy;

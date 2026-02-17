@@ -660,6 +660,82 @@ const deleteDriver = async (req, res) => {
   }
 };
 
+// Update customer status and info (Super Admin only)
+const updateCustomerStatus = async (req, res) => {
+  const { userId, status, fullName, email, companyName } = req.body;
+  const User = require('../models/User');
+
+  if (!userId || !['Active', 'Disabled'].includes(status)) {
+    return res.status(400).json({ message: 'User ID and valid status (Active/Disabled) required' });
+  }
+
+  try {
+    const updateData = { status };
+    if (fullName) updateData.fullName = fullName;
+    if (email) updateData.email = email;
+    if (companyName !== undefined) updateData.companyName = companyName;
+
+    const user = await User.findByIdAndUpdate(userId, updateData, { new: true });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.status(200).json({ message: 'Customer updated successfully', user });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// Update customer wallet balance (Super Admin only)
+const updateCustomerWallet = async (req, res) => {
+  const { userId, amount, description } = req.body;
+  const Wallet = require('../models/Wallet');
+  const Transaction = require('../models/Transaction');
+  const User = require('../models/User');
+  const { v4: uuidv4 } = require('uuid');
+
+  if (!userId || amount === undefined) {
+    return res.status(400).json({ message: 'User ID and amount are required' });
+  }
+
+  try {
+    const type = amount >= 0 ? 'credit' : 'debit';
+    const absAmount = Math.abs(amount);
+
+    const updatedWallet = await Wallet.findOneAndUpdate(
+      { userId },
+      {
+        $inc: { balance: amount },
+        $push: {
+          transactions: {
+            type: type,
+            amount: absAmount,
+            description: description || 'Admin Adjustment',
+            date: new Date()
+          }
+        }
+      },
+      { new: true, upsert: true }
+    );
+
+    const user = await User.findById(userId).select('fullName email');
+    const customerName = user ? (user.fullName || user.email) : 'Unknown User';
+
+    await Transaction.create({
+      txnId: "TXN-ADMIN-ADJ-" + uuidv4().slice(0, 8).toUpperCase(),
+      customer: customerName,
+      userId: userId,
+      type: type === 'credit' ? 'Credit' : 'Debit',
+      amount: absAmount,
+      method: 'Wallet',
+      status: 'Completed',
+      orderId: description || 'Admin Adjustment',
+      date: new Date()
+    });
+
+    res.status(200).json({ message: 'Wallet updated successfully', wallet: updatedWallet });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
 module.exports = {
   getPendingDrivers,
   getAcceptedDrivers,
@@ -677,5 +753,7 @@ module.exports = {
   downloadWaybill,
   downloadPOD,
   createCustomer,
-  deleteDriver
+  deleteDriver,
+  updateCustomerStatus,
+  updateCustomerWallet
 };

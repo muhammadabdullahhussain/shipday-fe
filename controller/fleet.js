@@ -1,15 +1,13 @@
 const Vehicle = require("../models/Vehicle");
 
-let vehicleCount = 0;
-
-const generateVehicleId = () => {
-  vehicleCount += 1;
-  return `V${vehicleCount.toString().padStart(5, "0")}`;
+const generateVehicleId = async () => {
+  const count = await Vehicle.countDocuments();
+  return `V${(count + 1).toString().padStart(5, "0")}`;
 };
 
 exports.createVehicle = async (req, res) => {
   try {
-    const vehicleId = generateVehicleId();
+    const vehicleId = await generateVehicleId();
     const vehicle = new Vehicle({ vehicleId, ...req.body });
     await vehicle.save();
     res.status(201).json(vehicle);

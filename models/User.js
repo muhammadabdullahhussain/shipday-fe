@@ -26,7 +26,7 @@ const userSchema = new mongoose.Schema(
     tokens: [{ type: String }], //  Multi-device support
 
 
-    // Add these profile fields:
+    // Profile fields
     companyName: String,
     fullName: String,
     nickName: String,
@@ -34,13 +34,33 @@ const userSchema = new mongoose.Schema(
     phone: String,
     gender: String,
     image: String,
+
+    // Detailed Address Fields
+    address: {
+      complexOrBusinessHub: String,
+      city: String,
+      province: String,
+      postalCode: String,
+      country: { type: String, default: 'South Africa' },
+      // Legacy field for backward compatibility
+      fullAddress: String,
+      // GPS coordinates
+      latitude: Number,
+      longitude: Number,
+    },
+
+    // Legacy location field (deprecated, use address instead)
     location: {
       latitude: Number,
       longitude: Number,
-      address: String, // Optional address field
+      address: String,
+    },
+    status: {
+      type: String,
+      enum: ['Active', 'Disabled'],
+      default: 'Active',
     },
   },
-
   { timestamps: true }
 );
 

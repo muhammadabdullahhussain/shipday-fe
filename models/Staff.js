@@ -6,14 +6,16 @@ const staffSchema = new mongoose.Schema({
   fullName: { type: String, required: true },
   contactInfo: { type: String, required: true },
   role: { type: String, required: true },
-  shift: String, 
+  shift: String,
   email: { type: String, required: true },
   baseLocation: { type: String, required: true },
   attendance: {
-  type: String,
-  enum: ["Present", "Absent"],
-  default: "Present"
-},
+    type: String,
+    enum: ["Present", "Absent"],
+    default: "Present"
+  },
+  latitude: { type: Number },
+  longitude: { type: Number },
 
 }, { timestamps: true });
 
