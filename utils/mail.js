@@ -8,11 +8,14 @@ const nodemailer = require("nodemailer");
 const transporter = nodemailer.createTransport({
   host: process.env.NOREPLY_SMTP_HOST || 'epic.aserv.co.za',
   port: parseInt(process.env.NOREPLY_SMTP_PORT) || 465,
-  secure: process.env.NOREPLY_SMTP_SECURE === 'true' || true, // true for 465, false for other ports
+  secure: process.env.NOREPLY_SMTP_SECURE === 'true' || true,
   auth: {
     user: process.env.NOREPLY_EMAIL || 'noreply@shipday.co.za',
     pass: process.env.NOREPLY_EMAIL_PASS,
   },
+  tls: {
+    rejectUnauthorized: false // For Afrihost wildcard cert compatibility
+  }
 });
 
 // Send mail function
