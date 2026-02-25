@@ -6,7 +6,7 @@ const nodemailer = require("nodemailer");
  * Uses noreply@shipday.co.za for verification/notification emails
  */
 const transporter = nodemailer.createTransport({
-  host: process.env.NOREPLY_SMTP_HOST || 'mail.shipday.co.za',
+  host: process.env.NOREPLY_SMTP_HOST || 'epic.aserv.co.za',
   port: parseInt(process.env.NOREPLY_SMTP_PORT) || 465,
   secure: process.env.NOREPLY_SMTP_SECURE === 'true' || true, // true for 465, false for other ports
   auth: {
