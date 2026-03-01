@@ -37,6 +37,7 @@ const userSchema = new mongoose.Schema(
 
     // Detailed Address Fields
     address: {
+      street: String,
       complexOrBusinessHub: String,
       city: String,
       province: String,

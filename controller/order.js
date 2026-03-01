@@ -17,7 +17,10 @@ const calculateCost = async (weight, dimensions, deliveryType, packageType) => {
       pricing = {
         economy: { baseAmount: 20, divisor: 5000, rate: 1.2 },
         express: { baseAmount: 40, divisor: 4000, rate: 1.2 },
-        satchel: { a4: 90, a3: 110 }
+        satchel: {
+          economy: { a4: 90, a3: 110 },
+          express: { a4: 110, a3: 130 }
+        }
       };
     }
 
@@ -208,7 +211,7 @@ exports.getOrdersByPhone = async (req, res) => {
         name: user.name,
         phone: user.phone,
         email: user.email,
-        address: user.location || 'N/A',
+        address: user.address || user.location || 'N/A',
       },
       orders,
     });

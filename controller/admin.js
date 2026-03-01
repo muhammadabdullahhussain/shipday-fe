@@ -616,16 +616,28 @@ const createCustomer = async (req, res) => {
     // Create User (Customer)
     const newUser = new User({
       customerId,
-      email,
+      email: email.toLowerCase(),
       password: hashedPassword,
       fullName,
       companyName,
-      phone,
+      phone: phone || '',
       role: 'Customer',
-      location: {
-        address: address || ''
+      address: address || {
+        street: '',
+        complexOrBusinessHub: '',
+        city: '',
+        province: '',
+        postalCode: '',
+        country: 'South Africa'
       }
     });
+
+    // Also update legacy location for backward compatibility if needed
+    if (address) {
+      newUser.location = {
+        address: `${address.street || ''}, ${address.city || ''}, ${address.province || ''}, ${address.country || ''}`.replace(/^, |, $/, '').replace(/, , /g, ', '),
+      };
+    }
 
     await newUser.save();
 
@@ -662,7 +674,7 @@ const deleteDriver = async (req, res) => {
 
 // Update customer status and info (Super Admin only)
 const updateCustomerStatus = async (req, res) => {
-  const { userId, status, fullName, email, companyName } = req.body;
+  const { userId, status, fullName, email, companyName, address, phone } = req.body;
   const User = require('../models/User');
 
   if (!userId || !['Active', 'Disabled'].includes(status)) {
@@ -674,6 +686,14 @@ const updateCustomerStatus = async (req, res) => {
     if (fullName) updateData.fullName = fullName;
     if (email) updateData.email = email;
     if (companyName !== undefined) updateData.companyName = companyName;
+    if (phone !== undefined) updateData.phone = phone;
+    if (address !== undefined) {
+      updateData.address = address;
+      // Also update legacy location for backward compatibility
+      updateData.location = {
+        address: `${address.street || ''}, ${address.city || ''}, ${address.province || ''}, ${address.country || ''}`.replace(/^, |, $/, '').replace(/, , /g, ', '),
+      };
+    }
 
     const user = await User.findByIdAndUpdate(userId, updateData, { new: true });
     if (!user) return res.status(404).json({ message: 'User not found' });

@@ -105,8 +105,18 @@ const requestVerificationCode = async (req, res) => {
     await sendVerificationCode(sanitizedEmail);
     res.status(200).json({ message: 'Verification code sent' });
   } catch (err) {
-    console.error('Email error:', err);
-    res.status(500).json({ message: 'Failed to send verification code' });
+    console.error('Email error:', err.message);
+
+    // Check for development fallback
+    if (err.message && err.message.startsWith('SMTP_FAIL_FALLBACK_OK')) {
+      const code = err.message.split(':')[1];
+      return res.status(200).json({
+        message: 'Email service delayed. Code logged to console (DEV MODE).',
+        dev_code: code // For easier testing in dev tools
+      });
+    }
+
+    res.status(500).json({ message: 'Failed to send verification code. SMTP connect timed out.' });
   }
 };
 
@@ -406,6 +416,7 @@ const getAllCustomers = async (req, res) => {
         company: user.companyName || '',
         status: user.status || 'Active',
         location: user.location || {},
+        address: user.address || {},
         role: user.role || 'Customer',
         totalOrders: userOrders.length,
         walletBalance: userWallet ? userWallet.balance : 0
