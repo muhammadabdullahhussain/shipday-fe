@@ -124,23 +124,50 @@ const generateWaybill = (shipment, res) => {
     const sender = shipment.senderDetails || { fullName: shipment.senderName, mobile: shipment.senderPhone, address: { city: shipment.start } };
     doc.font('Helvetica').fontSize(8).fillColor('#000000');
     let textY = row1Y + 21;
-    doc.text(sender.fullName || '', 25, textY);
 
-    doc.font('Helvetica-Bold');
-    doc.text(sender.company || '', 25, textY + 10);
+    // Full name
+    doc.font('Helvetica-Bold').fillColor('#000000').text(sender.fullName || 'Name missing', 25, textY);
 
-    doc.font('Helvetica');
-    doc.text(sender.mobile || '', 25, textY + 20);
-
+    // Business name (company)
+    if (sender.company) {
+        doc.font('Helvetica-Bold').fillColor('#000000').text(sender.company, 25, textY + 10);
+    } else {
+        doc.font('Helvetica-Bold').fillColor('#cc0000').text('Business name missing', 25, textY + 10);
+    }
     doc.fillColor('#000000');
-    doc.text(sender.email || '', 25, textY + 30);
+
+    // Mobile
+    doc.font('Helvetica').text(sender.mobile || 'Phone missing', 25, textY + 20);
+
+    // Email
+    if (sender.email) {
+        doc.fillColor('#000000').text(sender.email, 25, textY + 30);
+    } else {
+        doc.fillColor('#cc0000').text('Email address missing', 25, textY + 30);
+    }
+    doc.fillColor('#000000');
 
     if (sender.address) {
-        doc.text(sender.address.street || '', 25, textY + 40);
+        // Street
+        if (sender.address.street) {
+            doc.text(sender.address.street, 25, textY + 40);
+        } else {
+            doc.fillColor('#cc0000').text('Sender address missing', 25, textY + 40);
+            doc.fillColor('#000000');
+        }
         const addrLine2 = `${sender.address.suburb || ''}, ${sender.address.city || ''}`.replace(/^, /, '').trim();
         doc.text(addrLine2 === ',' ? '' : addrLine2, 25, textY + 50);
-        const addrLine3 = `${sender.address.province || ''} ${sender.address.postalCode || ''}`.trim();
-        doc.text(addrLine3, 25, textY + 60);
+        const province = sender.address.province || '';
+        const postalCode = sender.address.postalCode || '';
+        if (province || postalCode) {
+            doc.text(`${province} ${postalCode}`.trim(), 25, textY + 60);
+        } else {
+            doc.fillColor('#cc0000').text('Sender postal code and province missing', 25, textY + 60);
+            doc.fillColor('#000000');
+        }
+    } else {
+        doc.fillColor('#cc0000').text('Sender address missing', 25, textY + 40);
+        doc.fillColor('#000000');
     }
 
     // COL 2: RECEIVER
@@ -151,19 +178,49 @@ const generateWaybill = (shipment, res) => {
     textY = row1Y + 21;
     const rX = 20 + colWidth + 5;
 
-    doc.font('Helvetica-Bold').fillColor('#000000').text(receiver.receiverName || '', rX, textY, { align: 'center', width: colWidth - 10 });
-    doc.text(receiver.company || '', rX, textY + 10, { align: 'center', width: colWidth - 10 });
+    // Receiver full name
+    doc.font('Helvetica-Bold').fillColor('#000000').text(receiver.receiverName || 'Name missing', rX, textY, { align: 'center', width: colWidth - 10 });
 
-    doc.font('Helvetica');
-    doc.text(receiver.mobile || '', rX, textY + 20, { align: 'center', width: colWidth - 10 });
-    doc.text(receiver.email || '', rX, textY + 30, { align: 'center', width: colWidth - 10 });
+    // Receiver business name
+    if (receiver.company) {
+        doc.font('Helvetica-Bold').fillColor('#000000').text(receiver.company, rX, textY + 10, { align: 'center', width: colWidth - 10 });
+    } else {
+        doc.font('Helvetica-Bold').fillColor('#cc0000').text('Receiver business name missing', rX, textY + 10, { align: 'center', width: colWidth - 10 });
+    }
+    doc.fillColor('#000000');
+
+    // Mobile
+    doc.font('Helvetica').text(receiver.mobile || 'Phone missing', rX, textY + 20, { align: 'center', width: colWidth - 10 });
+
+    // Email
+    if (receiver.email) {
+        doc.fillColor('#000000').text(receiver.email, rX, textY + 30, { align: 'center', width: colWidth - 10 });
+    } else {
+        doc.fillColor('#cc0000').text('email address missing', rX, textY + 30, { align: 'center', width: colWidth - 10 });
+    }
+    doc.fillColor('#000000');
 
     if (receiver.address) {
-        doc.text(receiver.address.street || '', rX, textY + 40, { align: 'center', width: colWidth - 10 });
+        // Street
+        if (receiver.address.street) {
+            doc.text(receiver.address.street, rX, textY + 40, { align: 'center', width: colWidth - 10 });
+        } else {
+            doc.fillColor('#cc0000').text('Customer address missing', rX, textY + 40, { align: 'center', width: colWidth - 10 });
+            doc.fillColor('#000000');
+        }
         const rAddr2 = `${receiver.address.city || ''}`;
         doc.text(rAddr2 || '', rX, textY + 50, { align: 'center', width: colWidth - 10 });
-        const rAddr3 = `${receiver.address.province || ''} ${receiver.address.postalCode || ''}`.trim();
-        doc.text(rAddr3, rX, textY + 60, { align: 'center', width: colWidth - 10 });
+        const rProvince = receiver.address.province || '';
+        const rPostal = receiver.address.postalCode || '';
+        if (rProvince || rPostal) {
+            doc.text(`${rProvince} ${rPostal}`.trim(), rX, textY + 60, { align: 'center', width: colWidth - 10 });
+        } else {
+            doc.fillColor('#cc0000').text('province missing & postal code missing', rX, textY + 60, { align: 'center', width: colWidth - 10 });
+            doc.fillColor('#000000');
+        }
+    } else {
+        doc.fillColor('#cc0000').text('Customer address missing', rX, textY + 40, { align: 'center', width: colWidth - 10 });
+        doc.fillColor('#000000');
     }
 
     // COL 3: SERVICE
@@ -216,10 +273,25 @@ const generateWaybill = (shipment, res) => {
     drawSectionBody(col3X, row2Y + 15, col3W, row2Height);
 
     let refY = row2Y + 21;
-    doc.font('Helvetica-Bold').fontSize(8).text(`Ref: ${shipment.shipmentId || '-'}`, col3X + 5, refY);
-    doc.font('Helvetica');
-    doc.text(`Order: ${shipment.orderNumber || '-'}`, col3X + 5, refY + 11);
-    doc.text(`Market: ${shipment.marketplaceName || '-'}`, col3X + 5, refY + 22);
+
+    // Order number (show prominently)
+    if (shipment.orderNumber) {
+        doc.font('Helvetica-Bold').fontSize(8).text(`Order: ${shipment.orderNumber}`, col3X + 5, refY);
+    } else {
+        doc.font('Helvetica-Bold').fontSize(8).fillColor('#cc0000').text('Order number missing', col3X + 5, refY);
+        doc.fillColor('#000000');
+    }
+
+    // Ref
+    doc.font('Helvetica').fontSize(8).text(`Ref: ${shipment.shipmentId || '-'}`, col3X + 5, refY + 11);
+
+    // Marketplace name
+    if (shipment.marketplaceName) {
+        doc.text(`Market: ${shipment.marketplaceName}`, col3X + 5, refY + 22);
+    } else {
+        doc.fillColor('#cc0000').text('Marketplace name missing', col3X + 5, refY + 22);
+        doc.fillColor('#000000');
+    }
 
 
     // ================= PROOF OF DELIVERY [Y: ~245 - 305] =================
