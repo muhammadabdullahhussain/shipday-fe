@@ -71,8 +71,18 @@ const createNotification = async (userId, title, message, type) => {
 
 // Generate unique customerId
 const generateCustomerId = async () => {
-  const count = await User.countDocuments({ customerId: /^CUST/ });
-  const nextNumber = count + 1;
+  const lastUser = await User.findOne({ customerId: /^CUST/ })
+    .sort({ customerId: -1 })
+    .collation({ locale: "en_US", numericOrdering: true });
+
+  let nextNumber = 1;
+  if (lastUser && lastUser.customerId) {
+    const match = lastUser.customerId.match(/^CUST(\d+)$/);
+    if (match) {
+      nextNumber = parseInt(match[1], 10) + 1;
+    }
+  }
+
   const padded = String(nextNumber).padStart(3, '0');
   return `CUST${padded}`;
 };
@@ -181,8 +191,6 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'Invalid verification code' });
     }
 
-    await VerificationCode.deleteOne({ email: sanitizedEmail });
-
     const customerId = await generateCustomerId();
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({
@@ -193,6 +201,9 @@ const registerUser = async (req, res) => {
 
     await user.save();
 
+    // Now delete the verification code since the save was successful
+    await VerificationCode.deleteOne({ email: sanitizedEmail });
+
     await createNotification(
       user._id,
       "Welcome to SwiftShip",
@@ -200,14 +211,34 @@ const registerUser = async (req, res) => {
       "registration"
     );
 
-    // Send notification to support
-    await sendMail(
-      "support@shipday.co.za",
-      "New User Registration",
-      `A new user has registered with email: ${sanitizedEmail}`
+    // Send notification to support (Wrap in try/catch to prevent failing the entire registration)
+    try {
+      await sendMail(
+        "support@shipday.co.za",
+        "New User Registration",
+        `A new user has registered with email: ${sanitizedEmail}`
+      );
+    } catch (mailError) {
+      console.error("Failed to send admin notification email:", mailError.message);
+    }
+
+    // Auto-login functionality
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role || 'Customer' },
+      process.env.JWT_SECRET,
+      { expiresIn: '2h' }
     );
 
-    res.status(201).json({ message: 'User registered successfully', customerId });
+    const tokenDoc = await Token.create({ userId: user._id, token });
+    tokenDoc.expiresAt = new Date(tokenDoc.createdAt.getTime() + 2 * 60 * 60 * 1000); // 2 hours
+    await tokenDoc.save();
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      customerId,
+      token,
+      user: { email: user.email, customerId: user.customerId, role: user.role || 'Customer' }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
